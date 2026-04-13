@@ -4,6 +4,7 @@ sqlalchemy
 alembic
 pydantic
 pydantic-settings
+jinja2
 ortools
 psycopg2-binary
 python-dotenv

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ app_name }} Demo</title>
+    <link rel="stylesheet" href="{{ request.url_for('static', path='demo.css') }}" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero-card">
+        <div class="hero-copy">
+          <p class="eyebrow">Recruiter Demo</p>
+          <h1>Zeit turns a rough workweek into a concrete plan.</h1>
+          <p class="hero-text">
+            This seeded scenario shows the app’s scheduling model, hard calendar constraints,
+            and OR-Tools-backed planning flow in one screen.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-block">
+            <span>Demo User</span>
+            <strong>{{ demo_user.email }}</strong>
+          </div>
+          <div class="meta-block">
+            <span>Planning Window</span>
+            <strong>{{ week_start.isoformat() }} to {{ week_end.isoformat() }}</strong>
+          </div>
+          <div class="chip-row">
+            <span class="chip chip-warm">{{ task_count }} tasks</span>
+            <span class="chip chip-cool">{{ event_count }} events</span>
+            <span class="chip chip-neutral">{{ block_count }} planned blocks</span>
+          </div>
+          <div class="action-row">
+            <button id="reset-demo" class="button button-secondary" type="button">Reset Seed Data</button>
+            <button id="generate-schedule" class="button button-primary" type="button">Generate Schedule</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <div class="stack-column">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Tasks</p>
+                <h2>Work queued for the week</h2>
+              </div>
+              <span class="panel-hint">Add tasks, set priority, and optionally force a due date.</span>
+            </div>
+
+            <form id="task-form" class="editor-form">
+              <input type="hidden" name="user_id" value="{{ demo_user.id }}" />
+              <label>
+                <span>Title</span>
+                <input name="title" type="text" required maxlength="255" placeholder="Add a new task" />
+              </label>
+              <label>
+                <span>Duration (minutes)</span>
+                <input name="est_duration_min" type="number" required min="1" step="15" value="60" />
+              </label>
+              <label>
+                <span>Priority</span>
+                <input name="priority" type="number" required min="0" max="5" value="2" />
+              </label>
+              <label>
+                <span>Due At</span>
+                <input name="due_at" type="datetime-local" />
+              </label>
+              <label class="checkbox-row">
+                <input name="due_is_hard" type="checkbox" />
+                <span>Hard deadline</span>
+              </label>
+              <button class="button button-secondary" type="submit">Add Task</button>
+            </form>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Task</th>
+                    <th>Duration</th>
+                    <th>Priority</th>
+                    <th>Due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for task in tasks %}
+                  <tr>
+                    <td>
+                      <strong>{{ task.title }}</strong>
+                      {% if task.category %}
+                      <span class="subtle">{{ task.category }}</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ task.est_duration_min }} min</td>
+                    <td>P{{ task.priority }}</td>
+                    <td>
+                      {% if task.due_at %}
+                        {{ task.due_at.strftime('%a %H:%M') }}
+                        {% if task.due_is_hard %}<span class="hard-tag">hard</span>{% endif %}
+                      {% else %}
+                        <span class="subtle">none</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Events</p>
+                <h2>Fixed calendar constraints</h2>
+              </div>
+              <span class="panel-hint">All events act as hard constraints in the first scheduler.</span>
+            </div>
+
+            <form id="event-form" class="editor-form">
+              <input type="hidden" name="user_id" value="{{ demo_user.id }}" />
+              <label>
+                <span>Title</span>
+                <input name="title" type="text" required maxlength="255" placeholder="Add a calendar event" />
+              </label>
+              <label>
+                <span>Starts At</span>
+                <input name="starts_at" type="datetime-local" required value="{{ week_start.isoformat() }}T09:00" />
+              </label>
+              <label>
+                <span>Ends At</span>
+                <input name="ends_at" type="datetime-local" required value="{{ week_start.isoformat() }}T10:00" />
+              </label>
+              <label>
+                <span>Location</span>
+                <input name="location" type="text" maxlength="255" placeholder="Optional location" />
+              </label>
+              <button class="button button-secondary" type="submit">Add Event</button>
+            </form>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Starts</th>
+                    <th>Ends</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for event in events %}
+                  <tr>
+                    <td>
+                      <strong>{{ event.title }}</strong>
+                      <span class="subtle">{{ event.source }}</span>
+                    </td>
+                    <td>{{ event.starts_at.strftime('%a %H:%M') }}</td>
+                    <td>{{ event.ends_at.strftime('%a %H:%M') }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="stack-column">
+          <section class="panel schedule-panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Generated Plan</p>
+                <h2>Weekly schedule output</h2>
+              </div>
+              <p id="schedule-summary" class="panel-hint">
+                {% if blocks %}
+                  {{ block_count }} planned blocks already exist for this demo week.
+                {% else %}
+                  Run the scheduler to generate a plan from the seeded scenario.
+                {% endif %}
+              </p>
+            </div>
+
+            <div id="planned-blocks" class="timeline-list">
+              {% if blocks %}
+                {% for block in blocks %}
+                <article class="timeline-card">
+                  <div class="timeline-time">
+                    <span>{{ block.starts_at.strftime('%a') }}</span>
+                    <strong>{{ block.starts_at.strftime('%H:%M') }} - {{ block.ends_at.strftime('%H:%M') }}</strong>
+                  </div>
+                  <div class="timeline-copy">
+                    <h3>{{ block.task.title if block.task else 'Planned block' }}</h3>
+                    <p>{{ block.generated_by }} generated this slot.</p>
+                  </div>
+                </article>
+                {% endfor %}
+              {% else %}
+                <p class="empty-state">No planned blocks yet. Generate the schedule to populate this view.</p>
+              {% endif %}
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Unscheduled</p>
+                <h2>What still does not fit</h2>
+              </div>
+              <span class="panel-hint">Reasons appear after each schedule run.</span>
+            </div>
+
+            <ul id="unscheduled-list" class="reason-list">
+              <li class="empty-state">No unscheduled tasks to show yet.</li>
+            </ul>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">How To Demo</p>
+                <h2>Recruiter walkthrough</h2>
+              </div>
+            </div>
+            <ol class="walkthrough-list">
+              <li>Reset the scenario to a deterministic sample week.</li>
+              <li>Point out how events reserve fixed time and tasks carry priorities and deadlines.</li>
+              <li>Generate the schedule and show which tasks fit, which do not, and why.</li>
+            </ol>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const demoUserId = {{ demo_user.id }};
+      const weekStart = "{{ week_start.isoformat() }}";
+      const plannedBlocksEl = document.getElementById("planned-blocks");
+      const unscheduledListEl = document.getElementById("unscheduled-list");
+      const scheduleSummaryEl = document.getElementById("schedule-summary");
+
+      async function requestJson(url, payload) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorPayload = await response.json().catch(() => ({}));
+          const message = errorPayload.detail || "Request failed";
+          throw new Error(message);
+        }
+
+        return response.json();
+      }
+
+      function formatDateTime(value) {
+        return new Date(value).toLocaleString([], {
+          weekday: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function renderBlocks(blocks) {
+        if (!blocks.length) {
+          plannedBlocksEl.innerHTML = '<p class="empty-state">No planned blocks were scheduled for this week.</p>';
+          return;
+        }
+
+        plannedBlocksEl.innerHTML = blocks
+          .map(
+            (block) => `
+              <article class="timeline-card">
+                <div class="timeline-time">
+                  <span>${formatDateTime(block.starts_at).split(",")[0]}</span>
+                  <strong>${formatDateTime(block.starts_at).split(", ")[1]} - ${new Date(block.ends_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong>
+                </div>
+                <div class="timeline-copy">
+                  <h3>${block.task_title || "Planned block"}</h3>
+                  <p>${block.generated_by} generated this slot.</p>
+                </div>
+              </article>
+            `,
+          )
+          .join("");
+      }
+
+      function renderUnscheduled(tasks) {
+        if (!tasks.length) {
+          unscheduledListEl.innerHTML = '<li class="empty-state">All tasks were scheduled inside the demo week.</li>';
+          return;
+        }
+
+        unscheduledListEl.innerHTML = tasks
+          .map(
+            (task) => `
+              <li class="reason-item">
+                <strong>${task.title}</strong>
+                <span>${task.est_duration_min} min · P${task.priority}</span>
+                <em>${task.reason.replaceAll("_", " ")}</em>
+              </li>
+            `,
+          )
+          .join("");
+      }
+
+      document.getElementById("task-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        await requestJson("/tasks", {
+          user_id: Number(form.get("user_id")),
+          title: form.get("title"),
+          est_duration_min: Number(form.get("est_duration_min")),
+          priority: Number(form.get("priority")),
+          due_at: form.get("due_at") || null,
+          due_is_hard: form.get("due_is_hard") === "on",
+        });
+        window.location.reload();
+      });
+
+      document.getElementById("event-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        await requestJson("/events", {
+          user_id: Number(form.get("user_id")),
+          title: form.get("title"),
+          starts_at: form.get("starts_at"),
+          ends_at: form.get("ends_at"),
+          location: form.get("location") || null,
+        });
+        window.location.reload();
+      });
+
+      document.getElementById("reset-demo").addEventListener("click", async () => {
+        await requestJson("/demo/reset", {});
+        window.location.reload();
+      });
+
+      document.getElementById("generate-schedule").addEventListener("click", async () => {
+        const payload = await requestJson("/schedule/generate", {
+          user_id: demoUserId,
+          week_start: weekStart,
+        });
+        scheduleSummaryEl.textContent = `${payload.scheduled_count} blocks scheduled, ${payload.unscheduled_count} tasks left unscheduled for the week.`;
+        renderBlocks(payload.blocks);
+        renderUnscheduled(payload.unscheduled_tasks);
+      });
+    </script>
+  </body>
+</html>

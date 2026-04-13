@@ -57,3 +57,20 @@ class Block:
     status: str = "planned"  # planned | done | skipped
     lock_level: str = "none"  # none | soft | hard
     generated_by: str = "solver"
+
+
+@dataclass(slots=True)
+class UnscheduledTask:
+    task_id: Optional[int]
+    user_id: int
+    title: str
+    est_duration_min: int
+    priority: int = 0
+    due_at: Optional[datetime] = None
+    reason: str = "no_capacity"
+
+
+@dataclass(slots=True)
+class ScheduleResult:
+    blocks: list[Block]
+    unscheduled_tasks: list[UnscheduledTask]

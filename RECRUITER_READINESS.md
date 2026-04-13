@@ -2,59 +2,60 @@
 
 ## Summary
 
-Zeit already presents well as an architecture-first backend prototype. The strongest signal in the repository is the separation between API, domain, persistence, services, and solver logic. That separation makes the code easy to discuss in an interview because the intent is clearer than in a single-file prototype.
+Zeit now presents as a real end-to-end demo rather than just an architecture skeleton. A recruiter can open the app, reset a seeded scenario, generate a schedule, and see both planned work and unscheduled tasks in one pass.
 
-The weak point is not code quality so much as feature completeness. A reviewer can see that the scheduling engine is still a placeholder, the API surface is narrow, and the developer tooling is still minimal. That is fine if you frame the repo honestly as an early-stage systems design and backend foundations exercise.
+The strongest signal is the combination of clean backend boundaries and a tangible product flow. The weak point is still depth: the scheduler is intentionally narrow, there is no auth or multi-user story, and the persistence/tooling layer is still prototype-grade.
 
 ## What This Repo Shows Well
 
 - Clean package boundaries and a sensible backend architecture.
 - Modern FastAPI and SQLAlchemy usage with environment-backed configuration.
 - A data model that matches the scheduling domain instead of generic CRUD tables.
-- Basic automated tests that a reviewer can run immediately.
-- Useful extension seams for scheduling, exports, and future integrations.
+- A recruiter-friendly UI instead of an API-only prototype.
+- A concrete scheduling flow with persisted blocks and explicit unscheduled reasons.
+- Automated tests that a reviewer can run immediately.
 
-## What Was Cleaned Up In This Pass
+## What Was Added In This Pass
 
-- Updated settings to work with the current Pydantic v2 stack.
-- Moved database initialization into the FastAPI startup lifecycle instead of running it at import time.
-- Switched `/tasks` creation to a typed JSON contract with explicit validation and response models.
-- Added a `/health` endpoint for smoke checks.
-- Added API and service tests so the repo has runnable verification.
-- Added a correctly named schema visualizer entrypoint while preserving backward compatibility with the old filename.
-- Tightened the README so the current scope is accurate and easy to explain.
+- Deterministic demo seeding and reset behavior for one local user and one workweek.
+- Event, block, reset, and schedule-generation endpoints alongside the task API.
+- A server-rendered demo page with seeded inputs, schedule generation, and output panels.
+- A scheduler that respects hard events, hard due dates, and workday limits, while surfacing unscheduled tasks clearly.
+- Solver, API, and UI tests that validate the main demo flow.
+- Lightweight repo tooling configuration for linting and CI.
 
 ## Remaining Risks Before Sharing Broadly
 
-- `app/solver/cp_sat_model.py` still returns an empty schedule, which makes the core product promise unimplemented.
-- There are no endpoints yet for events, blocks, or schedule generation.
-- The project does not yet show migrations, CI, linting, or static analysis.
+- There are still no update/delete flows for tasks or events in the UI.
+- The scheduler is intentionally constrained to one Monday-Friday planning window and contiguous blocks.
+- Alembic migrations are still missing, so schema evolution is not production-grade.
 - Authentication, authorization, and multi-user constraints are not addressed.
 - SQLite is fine for a prototype, but it signals local development rather than production readiness.
+- OR-Tools is runtime-sensitive on Python 3.13, so the app includes a deterministic fallback scheduler for compatibility.
 
 ## Recommended Next Steps
 
-1. Implement one end-to-end planning flow.
-   Add event CRUD, a schedule-generation endpoint, and a minimal non-empty scheduling strategy even if it is heuristic rather than optimal.
+1. Add update/delete interactions for tasks and events.
+   The current add-and-reset flow is enough for a demo, but fuller editing would make the product feel less staged.
 
-2. Add developer-quality signals.
-   Create a `pyproject.toml` with Ruff and pytest settings, then add a small CI workflow that runs tests on push.
-
-3. Show one stronger piece of business logic.
-   A simple scheduler that respects fixed events and places tasks by priority would make the project materially more impressive than a placeholder solver.
-
-4. Improve persistence discipline.
+2. Improve persistence discipline.
    Add Alembic migrations and stop relying on `create_all()` as the primary schema workflow.
 
-5. Broaden tests around behavior, not just smoke paths.
-   Add tests for invalid event ranges, schedule conflicts, and ICS export edge cases.
+3. Deepen the scheduler.
+   Add task splitting, configurable planning windows, and richer objective tuning once the current demo narrative is stable.
+
+4. Add more operational polish.
+   Expand linting/static analysis and add a small seed or demo script for one-command local setup.
+
+5. Extend tests around edge behavior.
+   Add checks for soft due-date ordering, event boundaries across days, and UI editing scenarios.
 
 ## How To Frame It With A Recruiter
 
-Present Zeit as a backend systems prototype for an intelligent scheduling assistant, not as a finished product. The strongest pitch is:
+Present Zeit as a backend-heavy product prototype for an intelligent scheduling assistant, not as a finished startup product. The strongest pitch is:
 
 - you designed a clean service boundary between HTTP, persistence, domain logic, and optimization
 - you modeled a non-trivial scheduling domain
-- you made the prototype runnable, testable, and ready for the next implementation step
+- you turned the prototype into a runnable, testable end-to-end demo with a clear user story
 
-That framing is defensible and will read much better than overselling the unfinished solver.
+That framing is defensible and will read much better than overselling scope the repo does not yet have.

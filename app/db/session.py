@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -35,5 +35,21 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Create the database schema if it does not already exist."""
+    """Create the database schema and refresh stale local SQLite schemas if needed."""
+    if engine.url.get_backend_name() == "sqlite":
+        Base.metadata.create_all(bind=engine)
+        inspector = inspect(engine)
+        for table_name, table in Base.metadata.tables.items():
+            if not inspector.has_table(table_name):
+                continue
+            existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+            expected_columns = set(table.columns.keys())
+            if expected_columns.issubset(existing_columns):
+                continue
+
+            # The local demo DB predates the current schema. Rebuild it so the app boots cleanly.
+            Base.metadata.drop_all(bind=engine)
+            Base.metadata.create_all(bind=engine)
+            return
+
     Base.metadata.create_all(bind=engine)
