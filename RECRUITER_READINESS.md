@@ -1,8 +1,8 @@
-# Zeit Recruiter Readiness
+# Zeit Readiness
 
 ## Summary
 
-Zeit now presents as a real end-to-end demo rather than just an architecture skeleton. A recruiter can open the app, reset a seeded scenario, generate a schedule, and see both planned work and unscheduled tasks in one pass.
+Zeit presents as a real end-to-end demo rather than just an architecture skeleton. A user can open the app, reset a seeded scenario, generate a schedule, and see both planned work and unscheduled tasks in one pass.
 
 The strongest signal is the combination of clean backend boundaries and a tangible product flow. The weak point is still depth: the scheduler is intentionally narrow, there is no auth or multi-user story, and the persistence/tooling layer is still prototype-grade.
 
@@ -11,7 +11,7 @@ The strongest signal is the combination of clean backend boundaries and a tangib
 - Clean package boundaries and a sensible backend architecture.
 - Modern FastAPI and SQLAlchemy usage with environment-backed configuration.
 - A data model that matches the scheduling domain instead of generic CRUD tables.
-- A recruiter-friendly UI instead of an API-only prototype.
+- A user friendly UI instead of an API-only prototype.
 - A concrete scheduling flow with persisted blocks and explicit unscheduled reasons.
 - Automated tests that a reviewer can run immediately.
 
@@ -50,12 +50,10 @@ The strongest signal is the combination of clean backend boundaries and a tangib
 5. Extend tests around edge behavior.
    Add checks for soft due-date ordering, event boundaries across days, and UI editing scenarios.
 
-## How To Frame It With A Recruiter
+## Frame of the project
 
 Present Zeit as a backend-heavy product prototype for an intelligent scheduling assistant, not as a finished startup product. The strongest pitch is:
 
-- you designed a clean service boundary between HTTP, persistence, domain logic, and optimization
-- you modeled a non-trivial scheduling domain
-- you turned the prototype into a runnable, testable end-to-end demo with a clear user story
-
-That framing is defensible and will read much better than overselling scope the repo does not yet have.
+- Designed a clean service boundary between HTTP, persistence, domain logic, and optimization
+- Modeled a non-trivial scheduling domain
+- Turned the prototype into a runnable, testable end-to-end demo with a clear user story

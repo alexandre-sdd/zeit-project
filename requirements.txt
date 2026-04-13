@@ -10,3 +10,9 @@ psycopg2-binary
 python-dotenv
 httpx
 pytest
+pydantic
+pydantic-settings
+pytest-asyncio
+pytest-cov
+pytest-mock
+sqlalchemy-schemadisplay

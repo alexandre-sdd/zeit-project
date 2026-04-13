@@ -44,7 +44,6 @@ class Task(Base):
     category = Column(String, nullable=True)
     preferred_location = Column(String, nullable=True)
     repeat_rule = Column(String, nullable=True)
-
     user = relationship("User", back_populates="tasks")
     blocks = relationship("Block", back_populates="task")
 
