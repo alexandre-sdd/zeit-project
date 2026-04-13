@@ -7,7 +7,7 @@ clean API to higher layers such as HTTP routes or CLI commands.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Iterable as TypingIterable
+from typing import Any
 
 from app.domain.entities import Block, Event, Task
 from app.solver.cp_sat_model import build_schedule
@@ -17,7 +17,7 @@ def plan_schedule(
     tasks: Iterable[Task],
     events: Iterable[Event],
     *,
-    options: dict[str, object] | None = None,
+    options: dict[str, Any] | None = None,
 ) -> list[Block]:
     """Generate a schedule using the solver."""
     return build_schedule(tasks, events, options=options)

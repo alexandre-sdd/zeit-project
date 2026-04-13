@@ -8,21 +8,24 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = Field("Zeit Project API", env="ZEIT_APP_NAME")
-    environment: Literal["dev", "prod", "test"] = Field("dev", env="ZEIT_ENV")
-    database_url: str = Field("sqlite:///./test.db", env="ZEIT_DATABASE_URL")
-    timezone: str = Field("UTC", env="ZEIT_TIMEZONE")
-    data_dir: Path = Field(Path("./data"), env="ZEIT_DATA_DIR")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    app_name: str = Field("Zeit Project API", validation_alias="ZEIT_APP_NAME")
+    environment: Literal["dev", "prod", "test"] = Field("dev", validation_alias="ZEIT_ENV")
+    database_url: str = Field("sqlite:///./test.db", validation_alias="ZEIT_DATABASE_URL")
+    timezone: str = Field("UTC", validation_alias="ZEIT_TIMEZONE")
+    data_dir: Path = Field(Path("./data"), validation_alias="ZEIT_DATA_DIR")
 
 
 @lru_cache(maxsize=1)

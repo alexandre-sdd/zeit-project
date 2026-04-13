@@ -1,103 +1,81 @@
-# Zeit Project Skeleton
+# Zeit
 
-This repository provides a structured skeleton for the Zeit intelligent scheduling assistant project. The layout is organized to cleanly separate API, domain, persistence, solver, and service concerns.
+Zeit is an architecture-first prototype for an intelligent scheduling assistant. The repository is intentionally split into API, domain, persistence, service, and solver layers so the project is easy to reason about even though the scheduling engine is still at an early stage.
 
-```
-zeit/
+## Current Scope
+
+- FastAPI application with a typed health endpoint and task CRUD foundation.
+- SQLAlchemy data model for users, tasks, events, and generated schedule blocks.
+- Service and solver seams in place for schedule generation and ICS export.
+- Small pytest suite covering API smoke paths and calendar export behavior.
+
+This is not yet a production scheduler. The value of the repo today is its structure, clarity, and extension points.
+
+## Layout
+
+```text
+zeit_code/
 ├── app/
-│   ├── api/          # FastAPI routers
+│   ├── api/          # FastAPI routes + request/response schemas
 │   ├── core/         # settings, logging, timezone helpers
-│   ├── db/           # ORM models, session management
-│   ├── domain/       # pure domain entities (Task, Event, Block)
-│   ├── solver/       # optimization entry points
-│   ├── services/     # application services (planning, exports)
-│   └── tests/        # pytest test suite
-├── scripts/          # automation and utility scripts
+│   ├── db/           # ORM models and session management
+│   ├── domain/       # pure dataclasses for scheduling concepts
+│   ├── solver/       # optimization and heuristic entry points
+│   ├── services/     # planning and calendar export orchestration
+│   ├── tests/        # pytest suite
+│   ├── db_visualizer.py
+│   └── main.py
+├── scripts/
 ├── README.md
 └── requirements.txt
 ```
 
-Key modules to explore first:
+## Quick Start
 
-- `app/main.py` – FastAPI application entry point.
-- `app/api/routes.py` – HTTP routes wired to services and persistence.
-- `app/core/settings.py` – environment-driven configuration.
-- `app/db/models.py` – relational schema for users, events, tasks, and blocks.
-- `app/services/` – orchestration between domain entities, solver, and API.
-- `app/solver/` – placeholder for the OR-Tools CP-SAT scheduling logic.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest -q
+uvicorn app.main:app --reload
+```
+
+The app creates the SQLite schema on startup using the configured `ZEIT_DATABASE_URL`, which defaults to `sqlite:///./test.db`.
+
+## API Example
+
+```bash
+curl http://127.0.0.1:8000/health
+
+curl -X POST http://127.0.0.1:8000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 1,
+    "title": "Prepare recruiter walkthrough",
+    "est_duration_min": 45,
+    "priority": 2
+  }'
+
+curl "http://127.0.0.1:8000/tasks?user_id=1"
+```
 
 ## Data Model
 
-The initial relational schema is backed by SQLAlchemy models in `app/db/models.py`:
+Core entities live in [app/db/models.py](/Users/alexandresepulvedadedietrich/Code/Old_Projectx/Zeit/zeit_code/app/db/models.py) and mirror the planned scheduling workflow:
 
-```sql
-CREATE TABLE users (
-  id INTEGER PRIMARY KEY,
-  email TEXT UNIQUE,
-  timezone TEXT NOT NULL DEFAULT 'America/New_York'
-);
+- `User` owns tasks, events, and blocks.
+- `Task` captures work to be scheduled, including duration, priority, and optional due date.
+- `Event` represents fixed calendar constraints.
+- `Block` stores the generated schedule output.
 
-CREATE TABLE events (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  title TEXT NOT NULL,
-  starts_at TIMESTAMP NOT NULL,
-  ends_at   TIMESTAMP NOT NULL,
-  location  TEXT,
-  lock_level TEXT NOT NULL DEFAULT 'hard',
-  source TEXT NOT NULL DEFAULT 'manual'
-);
+## Optional Utility
 
-CREATE TABLE tasks (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  title TEXT NOT NULL,
-  est_duration_min INTEGER NOT NULL,
-  due_at TIMESTAMP,
-  due_is_hard BOOLEAN NOT NULL DEFAULT 0,
-  priority INTEGER NOT NULL DEFAULT 0,
-  category TEXT,
-  preferred_location TEXT,
-  repeat_rule TEXT
-);
+To render the schema diagram, install `sqlalchemy-schemadisplay` and Graphviz, then run:
 
-CREATE TABLE blocks (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  task_id INTEGER REFERENCES tasks(id),
-  event_id INTEGER REFERENCES events(id),
-  starts_at TIMESTAMP NOT NULL,
-  ends_at   TIMESTAMP NOT NULL,
-  location TEXT,
-  status TEXT NOT NULL DEFAULT 'planned',
-  lock_level TEXT NOT NULL DEFAULT 'none',
-  generated_by TEXT NOT NULL DEFAULT 'solver'
-);
+```bash
+python app/db_visualizer.py
 ```
 
-## Getting Started
+## Next Steps
 
-1. **Create a virtual environment and install dependencies**:
-
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-2. **Initialize the database**:
-
-   Run the following in a Python shell or script to create the tables:
-
-   ```python
-   from app.db.session import init_db
-   init_db()
-   ```
-
-3. **Run the FastAPI server**:
-
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-This skeleton provides a starting point; you can extend it with CRUD endpoints, scheduling logic using OR-Tools, and additional services as described in the project plan.
+See [RECRUITER_READINESS.md](/Users/alexandresepulvedadedietrich/Code/Old_Projectx/Zeit/zeit_code/RECRUITER_READINESS.md) for a concise review of what the repo already shows well, what still looks unfinished, and the highest-leverage improvements to make before sharing it more broadly.
