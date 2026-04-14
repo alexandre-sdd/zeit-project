@@ -2,6 +2,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .api.routes import router as api_router
@@ -23,6 +24,16 @@ app_dir = Path(__file__).resolve().parent
 
 # Create the FastAPI app instance with configured metadata.
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify your frontend domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.mount("/static", StaticFiles(directory=str(app_dir / "static")), name="static")
 
 # Include API routes
