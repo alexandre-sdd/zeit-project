@@ -13,6 +13,7 @@ The strongest signal is the combination of clean backend boundaries and a tangib
 - A data model that matches the scheduling domain instead of generic CRUD tables.
 - A user friendly UI instead of an API-only prototype.
 - A concrete scheduling flow with persisted blocks and explicit unscheduled reasons.
+- Persistent schedule-run diagnostics that make solver decisions inspectable instead of opaque.
 - Automated tests that a reviewer can run immediately.
 
 ## What Was Added In This Pass
@@ -23,6 +24,7 @@ The strongest signal is the combination of clean backend boundaries and a tangib
 - A scheduler that respects hard events, hard due dates, and workday limits, while surfacing unscheduled tasks clearly.
 - Solver, API, and UI tests that validate the main demo flow.
 - Lightweight repo tooling configuration for linting and CI.
+- Persistent run logging, developer-facing diagnostics traces, and deployment notes for Docker volumes and Railway Postgres.
 
 ## Remaining Risks Before Sharing Broadly
 
@@ -30,7 +32,7 @@ The strongest signal is the combination of clean backend boundaries and a tangib
 - The scheduler is intentionally constrained to one Monday-Friday planning window and contiguous blocks.
 - Alembic migrations are still missing, so schema evolution is not production-grade.
 - Authentication, authorization, and multi-user constraints are not addressed.
-- SQLite is fine for a prototype, but it signals local development rather than production readiness.
+- SQLite is fine for local development, but production persistence should stay on Postgres rather than file-backed container storage.
 - OR-Tools is runtime-sensitive on Python 3.13, so the app includes a deterministic fallback scheduler for compatibility.
 
 ## Recommended Next Steps
@@ -39,7 +41,7 @@ The strongest signal is the combination of clean backend boundaries and a tangib
    The current add-and-reset flow is enough for a demo, but fuller editing would make the product feel less staged.
 
 2. Improve persistence discipline.
-   Add Alembic migrations and stop relying on `create_all()` as the primary schema workflow.
+   Add Alembic migrations and stop relying on `create_all()` as the primary schema workflow now that more persistent state and diagnostics are stored.
 
 3. Deepen the scheduler.
    Add task splitting, configurable planning windows, and richer objective tuning once the current demo narrative is stable.

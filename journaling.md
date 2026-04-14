@@ -16,3 +16,22 @@ Shaped the `zeit/` project structure (api/core/db/domain/solver/services/tests) 
 
 ### 26 Oct 2025
 Contimue on exploring data structure, created script to visualize data base `db_vizualiser.db`
+
+### 13 Apr 2026
+Expanded the demo from a simple schedule generator into a more inspectable planning tool.
+Added adjustable workday windows in the UI and updated the schedule surface so the queue, calendar, and diagnostics panels are easier to inspect during a run.
+
+### 14 Apr 2026
+Added persistent schedule run logging for each generated plan.
+Each run now stores constraints, tasks sent to the solver, planned tasks, unplanned tasks, solver metadata, and the final solution snapshot.
+
+Added developer-facing diagnostics traces so a run can be diagnosed after the fact.
+The logs now capture task ordering, valid windows, attempted placements, blockers, and chosen windows for the greedy fallback, plus structured task-level diagnostics for the CP-SAT path.
+
+Updated deployment and persistence setup:
+- Docker now defaults the SQLite path to `/data/test.db`
+- added `.env.example` and `docker-compose.yml`
+- documented Docker volume persistence for local runs
+- documented Railway Postgres persistence for deployed runs
+
+Connected the deployed app to Railway Postgres so generated schedules and run logs persist across redeploys.

@@ -5,9 +5,10 @@ Zeit is a User-friendly prototype for an intelligent scheduling assistant. It no
 ## Current Scope
 
 - FastAPI application with a server-rendered demo page at `/`.
-- JSON endpoints for tasks, events, blocks, demo reset, and schedule generation.
-- SQLAlchemy data model for users, tasks, events, and generated schedule blocks.
+- JSON endpoints for tasks, events, blocks, schedule-run logs, demo reset, and schedule generation.
+- SQLAlchemy data model for users, tasks, events, generated schedule blocks, and persisted schedule-run diagnostics.
 - A Monday-Friday, 9-5 scheduler that respects hard events and hard due dates, persists planned blocks, and reports unscheduled work.
+- Developer-facing run diagnostics that persist solver inputs and decision traces for later inspection.
 - Automated tests covering solver behavior, API flows, and UI smoke paths.
 
 This is still not a production scheduler. The value of the repo today is that the architecture is clear, the demo is runnable, and the core planning story is easy to explain in an interview.
@@ -84,7 +85,8 @@ scripts/run_in_zeit_env.sh pytest -q
 2. Review or edit the seeded tasks and hard events.
 3. Click `Generate Schedule` to create planned blocks for the week.
 4. Review unscheduled tasks and reasons such as `no_capacity`, `hard_due_conflict`, or `outside_work_window`.
-5. Use `Reset Seed Data` to return the demo to a deterministic baseline.
+5. Open `Run Diagnostics` to inspect solver status, persisted run logs, and raw technical trace data.
+6. Use `Reset Seed Data` to return the demo to a deterministic baseline.
 
 ## API Examples
 
@@ -103,6 +105,8 @@ curl -X POST http://127.0.0.1:8000/schedule/generate \
   }'
 
 curl "http://127.0.0.1:8000/blocks?user_id=2&week_start=2026-04-13"
+
+curl "http://127.0.0.1:8000/schedule/runs?user_id=2&week_start=2026-04-13"
 ```
 
 ## Docker Persistence
@@ -166,6 +170,7 @@ The app will create the schema on startup against that database, and tasks, bloc
 Core entities live in `app/db/models.py` and mirror the planned scheduling workflow:
 
 - `User` owns tasks, events, and blocks.
+- `ScheduleRun` stores persisted solver diagnostics for each generated plan.
 - `Task` captures work to be scheduled, including duration, priority, and optional due date.
 - `Event` represents fixed calendar constraints.
 - `Block` stores the generated schedule output.
@@ -178,6 +183,7 @@ Core entities live in `app/db/models.py` and mirror the planned scheduling workf
 - Hard events block time completely
 - Hard due tasks must finish before `due_at`
 - If OR-Tools is not usable in the current runtime, the app falls back to a deterministic greedy scheduler so the demo still works
+- Each schedule run now records solver diagnostics so placement decisions can be audited after the run
 
 ## Optional Utility
 
