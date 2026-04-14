@@ -14,9 +14,9 @@
 
 \section{Purpose}
 Zeit plans one workweek by assigning tasks to a Monday--Friday calendar with fixed events,
-30-minute granularity, hard deadlines, and finite working hours. The implementation uses a
-CP-SAT model when OR-Tools is available and falls back to a deterministic greedy heuristic
-when it is not.
+30-minute granularity, hard deadlines, and a finite user-selected working window. The
+implementation uses a CP-SAT model when OR-Tools is available and falls back to a deterministic
+greedy heuristic when it is not.
 
 \section{Planning Horizon}
 Let
@@ -25,12 +25,15 @@ D = \{1, \dots, 5\}
 \]
 be the workdays in the planning week and let each day contain
 \[
-H = 16
+H = \frac{b-a}{30}
 \]
-half-hour slots corresponding to the window \(09{:}00\) to \(17{:}00\). The compressed weekly
+half-hour slots corresponding to the active workday window \([a,b)\), where \(a\) and \(b\) are
+times of day measured in minutes from midnight and must align to the 30-minute grid. The
+default window is \(09{:}00\) to \(17{:}00\), but the UI can override that per planning run.
+The compressed weekly
 slot set is
 \[
-S = \{0, \dots, 79\}.
+S = \{0, \dots, 5H - 1\}.
 \]
 This compressed index is a modelling device: nights are omitted from the optimisation state,
 even though the final UI renders the selected slots back onto a wall-clock calendar.
@@ -45,7 +48,8 @@ For each task \(i \in T\), the model takes:
 \end{itemize}
 
 For each fixed event \(e \in E\), the model derives a busy interval on the compressed slot axis.
-Those intervals are immutable and remove capacity from the feasible region.
+Only the portion of an event that overlaps the selected workday window contributes to the busy
+interval set. Those intervals are immutable and remove capacity from the feasible region.
 
 \section{Decision Variables}
 For each task \(i \in T\):
@@ -85,10 +89,12 @@ with \texttt{AddNoOverlap} over optional task intervals plus constant event inte
 \subsection{Hard Deadlines}
 If task \(i\) has a hard deadline, then
 \[
-f_i \le d_i
+f_i \le \delta_i
 \]
 whenever \(x_i = 1\). If no feasible start remains after combining the workday boundary and the
 busy-event exclusions, the task is declared unscheduled with reason \texttt{hard\_due\_conflict}.
+Here \(\delta_i\) is the due date mapped onto the compressed weekly slot axis and clipped to the
+selected workday window for the corresponding day.
 
 \subsection{Capacity and Feasibility Filters}
 Tasks longer than a full workday are removed before optimisation:
@@ -136,6 +142,7 @@ demo schedule.
 \begin{itemize}
   \item Each task is a single contiguous block.
   \item Only one workweek is considered at a time.
+  \item The workday window applies to one planning run; it is not yet stored as a persistent user preference.
   \item Context switching, travel, and preferred sequencing are not modelled yet.
   \item Priority is treated as a scalar weight rather than a richer utility curve.
 \end{itemize}
