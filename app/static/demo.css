@@ -218,11 +218,6 @@ textarea {
   overflow: hidden;
 }
 
-.top-panels .panel:not(.tasks-panel):not(.constraints-panel) {
-  display: flex;
-  flex-direction: column;
-}
-
 .panel-header,
 .summary-card-header {
   display: flex;
@@ -280,40 +275,35 @@ textarea {
 
 .table-wrap {
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-.tasks-panel .table-wrap {
+.table-wrap::-webkit-scrollbar {
+  width: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid rgba(247, 241, 227, 0.9);
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
 .tasks-panel .table-wrap,
 .constraints-panel .table-wrap {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-}
-
-.tasks-panel .table-wrap::-webkit-scrollbar,
-.constraints-panel .table-wrap::-webkit-scrollbar {
-  width: 10px;
-}
-
-.tasks-panel .table-wrap::-webkit-scrollbar-track,
-.constraints-panel .table-wrap::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-  border-radius: 999px;
-}
-
-.tasks-panel .table-wrap::-webkit-scrollbar-thumb,
-.constraints-panel .table-wrap::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 999px;
-  border: 2px solid rgba(247, 241, 227, 0.9);
-}
-
-.tasks-panel .table-wrap::-webkit-scrollbar-thumb:hover,
-.constraints-panel .table-wrap::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
 }
 
 .data-table {
