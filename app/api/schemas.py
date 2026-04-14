@@ -108,6 +108,7 @@ class SolverRunRead(BaseModel):
     status: str
     message: str
     objective_value: float | None = None
+    diagnostics: dict[str, Any] | None = None
 
 
 class ScheduleGenerateRequest(BaseModel):

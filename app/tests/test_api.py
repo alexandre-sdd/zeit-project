@@ -175,6 +175,8 @@ def test_demo_reset_and_schedule_generation_replace_prior_blocks(client: TestCli
     assert first_payload["solver_run"]["engine"] in {"or_tools_cp_sat", "greedy_fallback"}
     assert first_payload["solver_run"]["status"]
     assert first_payload["solver_run"]["message"]
+    assert first_payload["solver_run"]["diagnostics"]["task_order"]
+    assert first_payload["solver_run"]["diagnostics"]["task_traces"]
     assert {item["reason"] for item in first_payload["unscheduled_tasks"]} >= {
         "hard_due_conflict",
         "outside_work_window",
@@ -242,6 +244,8 @@ def test_schedule_generation_persists_run_log(client: TestClient) -> None:
     assert latest_log["constraints"]["workday_end"] == "21:00:00"
     assert len(latest_log["tasks_to_plan"]) > 0
     assert latest_log["solver"]["engine"] in {"or_tools_cp_sat", "greedy_fallback"}
+    assert latest_log["solver"]["diagnostics"]["task_order"]
+    assert latest_log["solver"]["diagnostics"]["task_traces"]
     assert latest_log["solution"]["scheduled_count"] == latest_log["scheduled_count"]
     assert latest_log["solution"]["unscheduled_count"] == latest_log["unscheduled_count"]
     assert len(latest_log["planned_tasks"]) == latest_log["scheduled_count"]

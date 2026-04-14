@@ -158,6 +158,157 @@ def _make_unscheduled(task: Task, reason: str) -> UnscheduledTask:
     )
 
 
+def _task_sort_details(task: Task) -> dict[str, Any]:
+    due_bucket = 0 if task.due_is_hard else 1 if task.due_at is not None else 2
+    due_value = task.due_at or datetime.max
+    duration_slots = slot_count(task.est_duration_min)
+    return {
+        "priority_weight": max(task.priority, 1),
+        "due_bucket": due_bucket,
+        "due_value": None if due_value == datetime.max else due_value,
+        "duration_slots": duration_slots,
+        "title": task.title,
+    }
+
+
+def _task_trace_header(task: Task, evaluation_index: int) -> dict[str, Any]:
+    return {
+        "evaluation_index": evaluation_index,
+        "task_id": task.id,
+        "title": task.title,
+        "priority": task.priority,
+        "est_duration_min": task.est_duration_min,
+        "due_at": task.due_at,
+        "due_is_hard": task.due_is_hard,
+        "sort_details": _task_sort_details(task),
+    }
+
+
+def _slot_window_payload(
+    absolute_start: int,
+    duration_slots: int,
+    week_start: date,
+    workday_window: WorkdayWindow,
+) -> dict[str, Any]:
+    slots_per_day = workday_window.slots_per_day
+    day_index = absolute_start // slots_per_day
+    day_slot = absolute_start % slots_per_day
+    absolute_end = absolute_start + duration_slots
+    return {
+        "absolute_start_slot": absolute_start,
+        "absolute_end_slot": absolute_end,
+        "day_index": day_index,
+        "day_slot": day_slot,
+        "duration_slots": duration_slots,
+        "duration_min": duration_slots * SLOT_MINUTES,
+        "starts_at": _slot_to_datetime(absolute_start, week_start, workday_window),
+        "ends_at": _slot_end_to_datetime(absolute_end, week_start, workday_window),
+    }
+
+
+def _segment_payload(
+    *,
+    kind: str,
+    day_index: int,
+    start_slot: int,
+    end_slot: int,
+    week_start: date,
+    workday_window: WorkdayWindow,
+    title: str | None = None,
+    task_id: int | None = None,
+    event_id: int | None = None,
+    source: str | None = None,
+) -> dict[str, Any]:
+    absolute_start = (day_index * workday_window.slots_per_day) + start_slot
+    absolute_end = (day_index * workday_window.slots_per_day) + end_slot
+    return {
+        "kind": kind,
+        "day_index": day_index,
+        "start_slot": start_slot,
+        "end_slot": end_slot,
+        "title": title,
+        "task_id": task_id,
+        "event_id": event_id,
+        "source": source,
+        "starts_at": _slot_to_datetime(absolute_start, week_start, workday_window),
+        "ends_at": _slot_end_to_datetime(absolute_end, week_start, workday_window),
+    }
+
+
+def _event_segments(
+    events: list[Event],
+    week_start: date,
+    workday_window: WorkdayWindow,
+) -> dict[int, list[dict[str, Any]]]:
+    segments: dict[int, list[dict[str, Any]]] = {day_index: [] for day_index in range(WORKDAYS_PER_WEEK)}
+    slots_per_day = workday_window.slots_per_day
+
+    for event in events:
+        for day_index in range(WORKDAYS_PER_WEEK):
+            day = week_start + timedelta(days=day_index)
+            day_start = datetime.combine(day, workday_window.start_time)
+            day_end = datetime.combine(day, workday_window.end_time)
+
+            overlap_start = max(event.starts_at, day_start)
+            overlap_end = min(event.ends_at, day_end)
+            if overlap_start >= overlap_end:
+                continue
+
+            start_minutes = (overlap_start - day_start).total_seconds() / 60
+            end_minutes = (overlap_end - day_start).total_seconds() / 60
+            start_slot = max(0, floor(start_minutes / SLOT_MINUTES))
+            end_slot = min(slots_per_day, ceil(end_minutes / SLOT_MINUTES))
+            if end_slot <= start_slot:
+                continue
+
+            segments[day_index].append(
+                _segment_payload(
+                    kind="event",
+                    day_index=day_index,
+                    start_slot=start_slot,
+                    end_slot=end_slot,
+                    week_start=week_start,
+                    workday_window=workday_window,
+                    title=event.title,
+                    event_id=event.id,
+                    source=event.source,
+                )
+            )
+
+    return segments
+
+
+def _find_blockers(
+    segments: list[dict[str, Any]],
+    start_slot: int,
+    duration_slots: int,
+) -> list[dict[str, Any]]:
+    end_slot = start_slot + duration_slots
+    blockers: list[dict[str, Any]] = []
+    for segment in sorted(segments, key=lambda item: (item["start_slot"], item["end_slot"])):
+        if start_slot < int(segment["end_slot"]) and end_slot > int(segment["start_slot"]):
+            blockers.append(segment)
+    return blockers
+
+
+def _largest_free_gap_minutes(
+    segments_by_day: dict[int, list[dict[str, Any]]],
+    workday_window: WorkdayWindow,
+) -> int:
+    largest_gap_slots = 0
+    slots_per_day = workday_window.slots_per_day
+    for day_index in range(WORKDAYS_PER_WEEK):
+        merged = _merge_intervals(
+            [(int(segment["start_slot"]), int(segment["end_slot"])) for segment in segments_by_day[day_index]]
+        )
+        cursor = 0
+        for start_slot, end_slot in merged:
+            largest_gap_slots = max(largest_gap_slots, start_slot - cursor)
+            cursor = max(cursor, end_slot)
+        largest_gap_slots = max(largest_gap_slots, slots_per_day - cursor)
+    return largest_gap_slots * SLOT_MINUTES
+
+
 def get_solver_runtime_status() -> SolverRun:
     """Describe whether the OR-Tools CP-SAT path can run in this environment."""
     cp_model = _load_cp_model()
@@ -206,24 +357,50 @@ def _build_schedule_greedy(
     _, fixed_busy = _event_busy_intervals(events, week_start, workday_window)
     slots_per_day = workday_window.slots_per_day
     current_busy = {day_index: list(intervals) for day_index, intervals in fixed_busy.items()}
+    fixed_segments = _event_segments(events, week_start, workday_window)
+    occupied_segments = {
+        day_index: list(segments)
+        for day_index, segments in fixed_segments.items()
+    }
+    ordered_tasks = sorted(tasks, key=_task_sort_key)
+    task_order = [_task_trace_header(task, index) for index, task in enumerate(ordered_tasks)]
 
     blocks: list[Block] = []
     unscheduled: list[UnscheduledTask] = []
+    task_traces: list[dict[str, Any]] = []
 
-    for task in sorted(tasks, key=_task_sort_key):
+    for evaluation_index, task in enumerate(ordered_tasks):
+        trace = _task_trace_header(task, evaluation_index)
         duration_slots = slot_count(task.est_duration_min)
+        trace["duration_slots"] = duration_slots
+        trace["largest_available_gap_min_before"] = _largest_free_gap_minutes(occupied_segments, workday_window)
         if duration_slots > slots_per_day:
+            trace["decision"] = "unscheduled"
+            trace["reason"] = "outside_work_window"
             unscheduled.append(_make_unscheduled(task, "outside_work_window"))
+            task_traces.append(trace)
             continue
 
         latest_end = _latest_end_slot(task.due_at, week_start, workday_window) if task.due_at else None
+        trace["latest_end_slot"] = latest_end
+        trace["latest_end_at"] = (
+            _slot_end_to_datetime(latest_end, week_start, workday_window) if latest_end is not None else None
+        )
         valid_starts = _valid_starts(
             duration_slots,
             slots_per_day=slots_per_day,
             latest_end=latest_end if task.due_is_hard else None,
         )
+        trace["valid_start_count"] = len(valid_starts)
+        trace["valid_windows"] = [
+            _slot_window_payload(start, duration_slots, week_start, workday_window)
+            for start in valid_starts
+        ]
         if not valid_starts:
+            trace["decision"] = "unscheduled"
+            trace["reason"] = "hard_due_conflict" if task.due_is_hard else "outside_work_window"
             unscheduled.append(_make_unscheduled(task, "hard_due_conflict" if task.due_is_hard else "outside_work_window"))
+            task_traces.append(trace)
             continue
 
         if task.due_is_hard and not _has_window_outside_fixed_events(
@@ -232,23 +409,77 @@ def _build_schedule_greedy(
             fixed_busy,
             slots_per_day=slots_per_day,
         ):
+            trace["attempts"] = []
+            for start in valid_starts:
+                day_index = start // slots_per_day
+                day_slot = start % slots_per_day
+                trace["attempts"].append(
+                    {
+                        **_slot_window_payload(start, duration_slots, week_start, workday_window),
+                        "result": "rejected",
+                        "rejection_reason": "fixed_event_conflict",
+                        "blockers": _find_blockers(fixed_segments[day_index], day_slot, duration_slots),
+                    }
+                )
+            trace["decision"] = "unscheduled"
+            trace["reason"] = "hard_due_conflict"
             unscheduled.append(_make_unscheduled(task, "hard_due_conflict"))
+            task_traces.append(trace)
             continue
 
         candidate_starts = _available_starts_for_soft_due(task, duration_slots, valid_starts, week_start, workday_window)
+        trace["candidate_windows_in_order"] = [
+            _slot_window_payload(start, duration_slots, week_start, workday_window)
+            for start in candidate_starts
+        ]
+        trace["attempts"] = []
         chosen_start: int | None = None
         for absolute_start in candidate_starts:
             day_index = absolute_start // slots_per_day
             day_slot = absolute_start % slots_per_day
+            blockers = _find_blockers(occupied_segments[day_index], day_slot, duration_slots)
             if _overlaps_busy(current_busy[day_index], day_slot, duration_slots):
+                trace["attempts"].append(
+                    {
+                        **_slot_window_payload(absolute_start, duration_slots, week_start, workday_window),
+                        "result": "rejected",
+                        "rejection_reason": "busy_overlap",
+                        "blockers": blockers,
+                    }
+                )
                 continue
             chosen_start = absolute_start
             current_busy[day_index].append((day_slot, day_slot + duration_slots))
             current_busy[day_index] = _merge_intervals(current_busy[day_index])
+            task_segment = _segment_payload(
+                kind="task",
+                day_index=day_index,
+                start_slot=day_slot,
+                end_slot=day_slot + duration_slots,
+                week_start=week_start,
+                workday_window=workday_window,
+                title=task.title,
+                task_id=task.id,
+                source="solver",
+            )
+            occupied_segments[day_index].append(task_segment)
+            trace["attempts"].append(
+                {
+                    **_slot_window_payload(absolute_start, duration_slots, week_start, workday_window),
+                    "result": "accepted",
+                    "blockers": [],
+                }
+            )
+            trace["decision"] = "scheduled"
+            trace["chosen_window"] = _slot_window_payload(absolute_start, duration_slots, week_start, workday_window)
             break
 
         if chosen_start is None:
+            trace["decision"] = "unscheduled"
+            trace["reason"] = "no_capacity"
+            trace["largest_available_gap_min_after"] = _largest_free_gap_minutes(occupied_segments, workday_window)
             unscheduled.append(_make_unscheduled(task, "no_capacity"))
+            task_traces.append(trace)
             continue
 
         end_slot = chosen_start + duration_slots
@@ -266,6 +497,7 @@ def _build_schedule_greedy(
                 generated_by="solver",
             )
         )
+        task_traces.append(trace)
 
     blocks.sort(key=lambda block: block.starts_at)
     unscheduled.sort(key=lambda item: (-item.priority, item.title))
@@ -277,6 +509,11 @@ def _build_schedule_greedy(
             ortools_available=False,
             status="FALLBACK_GREEDY",
             message=f"Greedy fallback scheduled {len(blocks)} blocks and left {len(unscheduled)} tasks unscheduled.",
+            diagnostics={
+                "strategy": "greedy_fallback",
+                "task_order": task_order,
+                "task_traces": task_traces,
+            },
         ),
     )
 
@@ -304,6 +541,7 @@ def _build_schedule_cp_sat(
 
     model = cp_model.CpModel()
     busy_intervals, busy_by_day = _event_busy_intervals(events, week_start, workday_window)
+    fixed_segments = _event_segments(events, week_start, workday_window)
     slots_per_day = workday_window.slots_per_day
     total_weekly_slots = workday_window.total_weekly_slots
     intervals = []
@@ -314,21 +552,41 @@ def _build_schedule_cp_sat(
 
     scheduled_candidates: list[dict[str, object]] = []
     unscheduled_tasks: list[UnscheduledTask] = []
+    task_traces: list[dict[str, Any]] = []
+    task_order = [_task_trace_header(task, index) for index, task in enumerate(tasks)]
 
-    for task in tasks:
+    for evaluation_index, task in enumerate(tasks):
+        trace = _task_trace_header(task, evaluation_index)
         duration_slots = slot_count(task.est_duration_min)
+        trace["duration_slots"] = duration_slots
+        trace["largest_available_gap_min_before"] = _largest_free_gap_minutes(fixed_segments, workday_window)
         if duration_slots > slots_per_day:
+            trace["decision"] = "unscheduled"
+            trace["reason"] = "outside_work_window"
             unscheduled_tasks.append(_make_unscheduled(task, "outside_work_window"))
+            task_traces.append(trace)
             continue
 
         latest_end = _latest_end_slot(task.due_at, week_start, workday_window) if task.due_at else None
+        trace["latest_end_slot"] = latest_end
+        trace["latest_end_at"] = (
+            _slot_end_to_datetime(latest_end, week_start, workday_window) if latest_end is not None else None
+        )
         valid_starts = _valid_starts(
             duration_slots,
             slots_per_day=slots_per_day,
             latest_end=latest_end if task.due_is_hard else None,
         )
+        trace["valid_start_count"] = len(valid_starts)
+        trace["valid_windows"] = [
+            _slot_window_payload(start, duration_slots, week_start, workday_window)
+            for start in valid_starts
+        ]
         if not valid_starts:
+            trace["decision"] = "unscheduled"
+            trace["reason"] = "hard_due_conflict" if task.due_is_hard else "outside_work_window"
             unscheduled_tasks.append(_make_unscheduled(task, "hard_due_conflict" if task.due_is_hard else "outside_work_window"))
+            task_traces.append(trace)
             continue
 
         if task.due_is_hard and not _has_window_outside_fixed_events(
@@ -337,7 +595,22 @@ def _build_schedule_cp_sat(
             busy_by_day,
             slots_per_day=slots_per_day,
         ):
+            trace["attempts"] = []
+            for start in valid_starts:
+                day_index = start // slots_per_day
+                day_slot = start % slots_per_day
+                trace["attempts"].append(
+                    {
+                        **_slot_window_payload(start, duration_slots, week_start, workday_window),
+                        "result": "rejected",
+                        "rejection_reason": "fixed_event_conflict",
+                        "blockers": _find_blockers(fixed_segments[day_index], day_slot, duration_slots),
+                    }
+                )
+            trace["decision"] = "unscheduled"
+            trace["reason"] = "hard_due_conflict"
             unscheduled_tasks.append(_make_unscheduled(task, "hard_due_conflict"))
+            task_traces.append(trace)
             continue
 
         start_var = model.NewIntVarFromDomain(
@@ -382,8 +655,10 @@ def _build_schedule_cp_sat(
                 "start_reward": start_reward,
                 "duration_slots": duration_slots,
                 "on_time_var": on_time_var,
+                "trace": trace,
             }
         )
+        task_traces.append(trace)
 
     model.AddNoOverlap(intervals)
     objective_terms = []
@@ -412,15 +687,28 @@ def _build_schedule_cp_sat(
                 ortools_available=True,
                 status=status_name,
                 message=f"OR-Tools CP-SAT completed with status {status_name} and did not produce a usable schedule.",
+                diagnostics={
+                    "strategy": "or_tools_cp_sat",
+                    "task_order": task_order,
+                    "task_traces": task_traces,
+                    "solve_status": status_name,
+                    "max_time_in_seconds": 5,
+                },
             ),
         )
 
     blocks: list[Block] = []
     for candidate in scheduled_candidates:
         task = candidate["task"]
+        trace = candidate["trace"]
         if solver.Value(candidate["present_var"]):
             start_slot = solver.Value(candidate["start_var"])
             end_slot = solver.Value(candidate["end_var"])
+            trace["decision"] = "scheduled"
+            trace["present"] = True
+            trace["chosen_window"] = _slot_window_payload(start_slot, int(candidate["duration_slots"]), week_start, workday_window)
+            if candidate["on_time_var"] is not None:
+                trace["on_time"] = bool(solver.Value(candidate["on_time_var"]))
             blocks.append(
                 Block(
                     id=None,
@@ -437,6 +725,9 @@ def _build_schedule_cp_sat(
             )
             continue
 
+        trace["decision"] = "unscheduled"
+        trace["present"] = False
+        trace["reason"] = "no_capacity"
         unscheduled_tasks.append(_make_unscheduled(task, "no_capacity"))
 
     blocks.sort(key=lambda block: block.starts_at)
@@ -450,6 +741,13 @@ def _build_schedule_cp_sat(
             status=status_name,
             message=f"OR-Tools CP-SAT returned {status_name}, scheduled {len(blocks)} blocks, and left {len(unscheduled_tasks)} tasks unscheduled.",
             objective_value=solver.ObjectiveValue(),
+            diagnostics={
+                "strategy": "or_tools_cp_sat",
+                "task_order": task_order,
+                "task_traces": task_traces,
+                "solve_status": status_name,
+                "max_time_in_seconds": 5,
+            },
         ),
     )
 
@@ -496,6 +794,11 @@ def build_schedule(
                 ortools_available=runtime.ortools_available,
                 status="NO_TASKS",
                 message="No tasks were available to schedule for this run.",
+                diagnostics={
+                    "strategy": runtime.engine,
+                    "task_order": [],
+                    "task_traces": [],
+                },
             ),
         )
 

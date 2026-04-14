@@ -173,6 +173,7 @@ def _serialize_solver_run(solver_run: SolverRun) -> dict[str, Any]:
         "status": solver_run.status,
         "message": solver_run.message,
         "objective_value": solver_run.objective_value,
+        "diagnostics": solver_run.diagnostics,
     }
 
 

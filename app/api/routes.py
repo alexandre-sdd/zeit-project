@@ -87,6 +87,7 @@ def _solver_run_to_read(solver_run) -> SolverRunRead:
         status=solver_run.status,
         message=solver_run.message,
         objective_value=solver_run.objective_value,
+        diagnostics=solver_run.diagnostics,
     )
 
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass(slots=True)
@@ -77,6 +77,7 @@ class SolverRun:
     status: str
     message: str
     objective_value: float | None = None
+    diagnostics: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)

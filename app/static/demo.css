@@ -1109,6 +1109,52 @@ textarea {
   color: var(--muted);
 }
 
+.run-log-technical {
+  margin-top: 12px;
+}
+
+.run-log-technical summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.run-log-pre {
+  margin: 10px 0 0;
+  max-height: 420px;
+  overflow: auto;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(19, 34, 56, 0.08);
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.run-log-pre::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.run-log-pre::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+.run-log-pre::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid rgba(247, 241, 227, 0.9);
+}
+
+.run-log-pre::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
 .empty-state {
   margin: 0;
   padding: 18px;

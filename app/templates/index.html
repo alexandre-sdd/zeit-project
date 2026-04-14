@@ -599,6 +599,15 @@
         });
       }
 
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
       function priorityClass(priority) {
         if (priority >= 5) return "p5";
         if (priority >= 3) return "p3";
@@ -932,6 +941,9 @@
           const unplannedTasks = run.unplanned_tasks || [];
           const tasksToPlan = run.tasks_to_plan || [];
           const solver = run.solver || {};
+          const diagnostics = solver.diagnostics || {};
+          const taskOrder = diagnostics.task_order || [];
+          const taskTraces = diagnostics.task_traces || [];
           const events = constraints.events || [];
           const workdayStart = constraints.workday_start || "n/a";
           const workdayEnd = constraints.workday_end || "n/a";
@@ -984,6 +996,18 @@
                       (item) => `${item.title || "Untitled"} · ${item.est_duration_min} min · P${item.priority ?? 0}${item.due_at ? ` · due ${formatDateTimeShort(item.due_at)}` : ""}`,
                     )}
                   </ul>
+                </section>
+                <section class="run-log-section">
+                  <strong>Technical Trace</strong>
+                  <ul class="run-log-lines">
+                    <li>Strategy: ${diagnostics.strategy || solver.engine || "unknown"}</li>
+                    <li>${taskOrder.length} tasks in evaluation order</li>
+                    <li>${taskTraces.length} per-task decision traces</li>
+                  </ul>
+                  <details class="run-log-technical">
+                    <summary>Raw trace JSON</summary>
+                    <pre class="run-log-pre">${escapeHtml(JSON.stringify(diagnostics, null, 2))}</pre>
+                  </details>
                 </section>
               </div>
             </article>
