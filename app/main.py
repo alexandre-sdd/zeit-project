@@ -1,10 +1,9 @@
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import ProxyHeadersMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .api.routes import router as api_router
@@ -30,9 +29,6 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 # Add trusted host middleware
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
-# Add proxy headers middleware to handle forwarded headers from Railway
-app.add_middleware(ProxyHeadersMiddleware)
-
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -41,6 +37,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def set_scheme_from_x_forwarded_proto(request: Request, call_next):
+    """Set the ASGI scope scheme from X-Forwarded-Proto when present.
+
+    This ensures URL generation (e.g. `request.url_for`) reflects the
+    original client scheme behind proxies like Railway.
+    """
+    xfp = request.headers.get("x-forwarded-proto")
+    if isinstance(xfp, str) and xfp:
+        request.scope["scheme"] = xfp.split(",")[0].strip()
+    return await call_next(request)
 
 app.mount("/static", StaticFiles(directory=str(app_dir / "static")), name="static")
 
