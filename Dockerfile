@@ -16,7 +16,6 @@ COPY . .
 
 # Prepare a persistent data directory for SQLite-backed deployments.
 RUN mkdir -p /data
-VOLUME ["/data"]
 
 # Expose port 8000
 EXPOSE 8000

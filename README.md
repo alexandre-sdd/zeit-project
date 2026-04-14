@@ -71,7 +71,7 @@ scripts/run_in_zeit_env.sh pytest -q
 
 - The active deploy root is the repository root: `zeit-project/`.
 - `Dockerfile` lives at the repo root and copies the app from that root into `/app` in the image.
-- The Docker image now defaults `ZEIT_DATABASE_URL` to `sqlite:////data/test.db` and declares `/data` as a volume so schedule runs can persist outside the image layer.
+- The Docker image now defaults `ZEIT_DATABASE_URL` to `sqlite:////data/test.db`; local persistence comes from a Docker bind mount or named volume at `/data`.
 - Static assets are served by FastAPI from `app/static` at `/static`, and the UI now resolves app routes with `request.url_for(...)` so links remain correct if the app is mounted behind a proxy path.
 - If Railway ever renders unstyled HTML again while the app otherwise loads, the likely causes are:
   - browser cache serving an old HTML shell or CSS response
