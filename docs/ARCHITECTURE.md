@@ -211,9 +211,16 @@ Technology:
 Browser-side responsibilities:
 - preview workday window changes
 - submit schedule generation requests
+- intercept task/event remove actions and call the JSON delete APIs without a full page reload
 - render returned blocks and unscheduled tasks
 - fetch persisted schedule run logs
 - display raw diagnostics JSON for owner/debug use
+
+Delete-control design:
+- the tasks/events "Remove" controls are rendered as real links in the HTML
+- normal operation uses JavaScript to intercept the click and issue `DELETE /tasks/{id}` or `DELETE /events/{id}`
+- after a successful delete, the page removes the row locally, updates counts, and redraws the dashboard in place
+- the link target remains a server-side fallback route so the control still works if browser-side JavaScript fails
 
 ## Primary Data Shapes
 

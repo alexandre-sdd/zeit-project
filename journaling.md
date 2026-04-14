@@ -35,3 +35,6 @@ Updated deployment and persistence setup:
 - documented Railway Postgres persistence for deployed runs
 
 Connected the deployed app to Railway Postgres so generated schedules and run logs persist across redeploys.
+
+Stabilized local delete behavior in the demo UI.
+Task and event removal now use async JavaScript again for in-place updates, but keep a server-side fallback route underneath so the controls still work if browser-side handling fails.

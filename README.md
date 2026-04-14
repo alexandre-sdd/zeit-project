@@ -93,6 +93,8 @@ scripts/run_in_zeit_env.sh pytest -q
 5. Open `Run Diagnostics` to inspect solver status, persisted run logs, and raw technical trace data.
 6. Use `Reset Seed Data` to return the demo to a deterministic baseline.
 
+The task and event `Remove` controls use an async browser path in normal operation, so rows disappear without a full reload. They also keep a server-side link fallback underneath, so delete still works if page JavaScript breaks.
+
 ## API Examples
 
 ```bash

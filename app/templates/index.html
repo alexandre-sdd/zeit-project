@@ -263,7 +263,7 @@
             <span class="legend-item"><span class="legend-swatch legend-p1"></span>P1-P2 task</span>
           </div>
 
-          <div class="calendar-layout">
+          <div class="calendar-layout" id="calendar-layout" style="--slot-count: {{ workday_slot_count }};">
             <div class="calendar-frame">
               <div class="calendar-header">
                 <div class="calendar-corner">Time</div>
@@ -418,6 +418,7 @@
       const workdayEndInputEl = document.getElementById("workday-end");
       const timeRailEl = document.getElementById("time-rail");
       const calendarGridEl = document.getElementById("calendar-grid");
+      const calendarLayoutEl = document.getElementById("calendar-layout");
       const calendarCardLayerEl = document.getElementById("calendar-card-layer");
       const priorityBreakdownEl = document.getElementById("priority-breakdown");
       const scheduledQueueEl = document.getElementById("scheduled-queue");
@@ -556,6 +557,7 @@
 
       function syncCalendarChrome() {
         const slotCount = String(totalSlotsPerDay());
+        calendarLayoutEl.style.setProperty("--slot-count", slotCount);
         calendarGridEl.style.setProperty("--slot-count", slotCount);
         timeRailEl.style.setProperty("--slot-count", slotCount);
         timeRailEl.innerHTML = buildTimeLabels()
