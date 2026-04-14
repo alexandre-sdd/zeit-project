@@ -1,5 +1,5 @@
 """
-Seed and load a deterministic demo week for the recruiter-facing flow.
+Seed and load a deterministic demo week for the visitor-facing flow.
 """
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ def reset_demo_data(db: Session) -> DemoState:
     tasks = [
         models.Task(user_id=user.id, title="Build timeline demo", est_duration_min=180, priority=5, category="product"),
         models.Task(user_id=user.id, title="Fix CP-SAT edge cases", est_duration_min=240, priority=5, category="engineering"),
-        models.Task(user_id=user.id, title="Prepare recruiter walkthrough", est_duration_min=90, priority=4, due_at=_dt(3, 15, 0), due_is_hard=True, category="presentation"),
+        models.Task(user_id=user.id, title="Prepare visitor walkthrough", est_duration_min=90, priority=4, due_at=_dt(3, 15, 0), due_is_hard=True, category="presentation"),
         models.Task(user_id=user.id, title="Draft architecture notes", est_duration_min=150, priority=4, category="architecture"),
         models.Task(user_id=user.id, title="Candidate Q&A prep", est_duration_min=150, priority=3, category="presentation"),
         models.Task(user_id=user.id, title="Polish API docs", est_duration_min=120, priority=3, category="documentation"),

@@ -721,7 +721,7 @@ textarea {
   gap: 10px;
 }
 
-.recruiter-note {
+.visitor-note {
   margin-top: 18px;
   padding: 16px 18px;
   border-radius: 18px;
@@ -729,12 +729,12 @@ textarea {
   border: 1px solid var(--line);
 }
 
-.recruiter-note strong {
+.visitor-note strong {
   display: block;
   margin-bottom: 6px;
 }
 
-.recruiter-note p {
+.visitor-note p {
   margin: 0;
   color: var(--muted);
 }

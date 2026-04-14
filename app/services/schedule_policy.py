@@ -1,5 +1,5 @@
 """
-Shared scheduling policy for the recruiter demo.
+Shared scheduling policy for the visitor demo.
 """
 from __future__ import annotations
 

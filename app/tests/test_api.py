@@ -20,7 +20,7 @@ def test_create_and_list_tasks_round_trip(client: TestClient) -> None:
         "/tasks",
         json={
             "user_id": 1,
-            "title": "Prepare recruiter walkthrough",
+            "title": "Prepare visitor walkthrough",
             "est_duration_min": 45,
             "priority": 2,
         },
@@ -28,7 +28,7 @@ def test_create_and_list_tasks_round_trip(client: TestClient) -> None:
 
     assert create_response.status_code == 201
     created_task = create_response.json()
-    assert created_task["title"] == "Prepare recruiter walkthrough"
+    assert created_task["title"] == "Prepare visitor walkthrough"
     assert created_task["priority"] == 2
 
     list_response = client.get("/tasks", params={"user_id": 1})

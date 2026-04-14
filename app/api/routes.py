@@ -90,7 +90,7 @@ def _unscheduled_to_read(title: str, user_id: int, est_duration_min: int, priori
 
 @router.get("/", response_class=HTMLResponse)
 def demo_page(request: Request, db: DbSession) -> HTMLResponse:
-    """Render the recruiter-facing demo page."""
+    """Render the visitor-facing demo page."""
     state = ensure_demo_data(db)
     task_payload = [_task_to_read(task).model_dump(mode="json") for task in state.tasks]
     event_payload = [_event_to_read(event).model_dump(mode="json") for event in state.events]
@@ -273,7 +273,7 @@ def generate_schedule(
     payload: ScheduleGenerateRequest,
     db: DbSession,
 ) -> ScheduleGenerateResponse:
-    """Run the recruiter demo scheduler for a given user and week."""
+    """Run the visitor demo scheduler for a given user and week."""
     try:
         result = generate_schedule_for_user(
             db,

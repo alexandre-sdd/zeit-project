@@ -10,7 +10,7 @@
     <main class="page-shell">
       <section class="hero-card">
         <div class="hero-copy">
-          <p class="eyebrow">Recruiter Demo</p>
+          <p class="eyebrow">Visitor Demo</p>
           <h1>Zeit turns a rough workweek into a concrete plan.</h1>
           <p class="hero-text">
             This seeded scenario shows the app’s scheduling model, hard calendar constraints,
@@ -302,7 +302,7 @@
             <div class="panel-header">
               <div>
                 <p class="section-label">How To Demo</p>
-                <h2>Recruiter walkthrough</h2>
+                <h2>Visitor walkthrough</h2>
               </div>
             </div>
             <ol class="walkthrough-list">
@@ -310,7 +310,7 @@
               <li>Point out the locked calendar events, task priorities, and hard deadlines.</li>
               <li>Generate the schedule and show which tasks fit, which do not, and why.</li>
             </ol>
-            <div class="recruiter-note">
+            <div class="visitor-note">
               <strong>Next steps</strong>
               <p>
                 The next product step is to polish the UI and UX so the planning state,
@@ -331,7 +331,7 @@
                 can persist across sessions.
               </p>
             </div>
-            <div class="recruiter-note">
+            <div class="visitor-note">
               <strong>Known limits</strong>
               <p>
                 This version still cannot break tasks into smaller blocks and cannot relax the
@@ -436,6 +436,17 @@
         return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
       }
 
+      function formatTimeDiff(startsAt, dueAt) {
+        if (!dueAt) return '';
+        const diffMs = localDate(dueAt) - localDate(startsAt);
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours < 0) return 'Overdue';
+        if (diffHours < 1) return `${Math.round(diffHours * 60)} min`;
+        if (diffHours < 24) return `${Math.round(diffHours)} h`;
+        const diffDays = diffHours / 24;
+        return `${Math.round(diffDays)} days`;
+      }
+
       function priorityClass(priority) {
         if (priority >= 5) return "p5";
         if (priority >= 3) return "p3";
@@ -504,11 +515,15 @@
             const meta = item.kind === "event"
               ? `${item.subtitle}${item.location ? ` · ${item.location}` : ""}`
               : `${item.subtitle}${item.dueAt ? ` · due ${formatDateTime(item.dueAt, { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : ""}`;
+            const tooltip = item.kind === "task"
+              ? `Task: ${item.title} | Due: ${item.dueAt ? formatDateTime(item.dueAt) : 'None'} | Time to due: ${item.dueAt ? formatTimeDiff(item.startsAt, item.dueAt) : 'N/A'}`
+              : `Event: ${item.title} | Location: ${item.location || 'N/A'} | Source: ${item.subtitle}`;
 
             return `
               <article
                 class="calendar-item ${kindClass} ${compactClass}"
                 style="--day-index: ${dayIndex}; --start-slot: ${startSlot}; --slot-span: ${slotSpan};"
+                title="${tooltip}"
               >
                 <div class="calendar-item-top">
                   ${badge}

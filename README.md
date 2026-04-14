@@ -1,6 +1,6 @@
 # Zeit
 
-Zeit is a recruiter-friendly prototype for an intelligent scheduling assistant. It now includes a seeded demo week, a lightweight FastAPI UI, JSON endpoints for tasks/events/blocks, and a working scheduler that turns one workweek of constraints into a concrete plan.
+Zeit is a User-friendly prototype for an intelligent scheduling assistant. It now includes a seeded demo week, a lightweight FastAPI UI, JSON endpoints for tasks/events/blocks, and a working scheduler that turns one workweek of constraints into a concrete plan.
 
 ## Current Scope
 
@@ -23,7 +23,7 @@ zeit_code/
 │   ├── domain/       # pure dataclasses for scheduling concepts
 │   ├── solver/       # optimization and heuristic entry points
 │   ├── services/     # planning, seeding, and calendar export orchestration
-│   ├── static/       # recruiter demo styles
+│   ├── static/       # User demo styles
 │   ├── templates/    # server-rendered demo UI
 │   ├── tests/        # pytest suite
 │   ├── db_visualizer.py
