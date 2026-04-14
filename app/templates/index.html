@@ -14,7 +14,7 @@
           <h1>Zeit turns a rough workweek into a concrete plan.</h1>
           <p class="hero-text">
             This seeded scenario shows the app’s scheduling model, hard calendar constraints,
-            and OR-Tools-backed planning flow in one screen.
+            and optimisation output in a single weekly planning surface.
           </p>
         </div>
         <div class="hero-meta">
@@ -28,7 +28,7 @@
           </div>
           <div class="chip-row">
             <span class="chip chip-warm">{{ task_count }} tasks</span>
-            <span class="chip chip-cool">{{ event_count }} events</span>
+            <span class="chip chip-cool">{{ event_count }} locked events</span>
             <span class="chip chip-neutral">{{ block_count }} planned blocks</span>
           </div>
           <div class="action-row">
@@ -94,7 +94,7 @@
                       {% endif %}
                     </td>
                     <td>{{ task.est_duration_min }} min</td>
-                    <td>P{{ task.priority }}</td>
+                    <td><span class="priority-pill priority-pill-p{{ task.priority }}">{{ "P%s" % task.priority }}</span></td>
                     <td>
                       {% if task.due_at %}
                         {{ task.due_at.strftime('%a %H:%M') }}
@@ -116,7 +116,7 @@
                 <p class="section-label">Events</p>
                 <h2>Fixed calendar constraints</h2>
               </div>
-              <span class="panel-hint">All events act as hard constraints in the first scheduler.</span>
+              <span class="panel-hint">All seeded events remain locked and cannot move.</span>
             </div>
 
             <form id="event-form" class="editor-form">
@@ -171,34 +171,93 @@
             <div class="panel-header">
               <div>
                 <p class="section-label">Generated Plan</p>
-                <h2>Weekly schedule output</h2>
+                <h2>Optimisation calendar</h2>
               </div>
               <p id="schedule-summary" class="panel-hint">
                 {% if blocks %}
-                  {{ block_count }} planned blocks already exist for this demo week.
+                  {{ block_count }} planned blocks are already layered onto the weekly calendar.
                 {% else %}
-                  Run the scheduler to generate a plan from the seeded scenario.
+                  Locked events are visible now. Run the optimiser to place task blocks into the remaining capacity.
                 {% endif %}
               </p>
             </div>
 
-            <div id="planned-blocks" class="timeline-list">
-              {% if blocks %}
-                {% for block in blocks %}
-                <article class="timeline-card">
-                  <div class="timeline-time">
-                    <span>{{ block.starts_at.strftime('%a') }}</span>
-                    <strong>{{ block.starts_at.strftime('%H:%M') }} - {{ block.ends_at.strftime('%H:%M') }}</strong>
+            <div class="schedule-stats">
+              <article class="schedule-stat">
+                <span>Scheduled focus</span>
+                <strong id="scheduled-hours">0h</strong>
+              </article>
+              <article class="schedule-stat">
+                <span>Locked events</span>
+                <strong>{{ event_count }}</strong>
+              </article>
+              <article class="schedule-stat">
+                <span>Unscheduled tasks</span>
+                <strong id="unscheduled-total">0</strong>
+              </article>
+            </div>
+
+            <div class="legend-row">
+              <span class="legend-item"><span class="legend-swatch legend-fixed"></span>Locked event</span>
+              <span class="legend-item"><span class="legend-swatch legend-p5"></span>P5 task</span>
+              <span class="legend-item"><span class="legend-swatch legend-p3"></span>P3-P4 task</span>
+              <span class="legend-item"><span class="legend-swatch legend-p1"></span>P1-P2 task</span>
+            </div>
+
+            <div class="calendar-layout">
+              <div class="calendar-frame">
+                <div class="calendar-header">
+                  <div class="calendar-corner">Time</div>
+                  {% for weekday in weekdays %}
+                  <div class="calendar-day-heading">
+                    <span>{{ weekday.label }}</span>
+                    <strong>{{ weekday.date_label }}</strong>
                   </div>
-                  <div class="timeline-copy">
-                    <h3>{{ block.task.title if block.task else 'Planned block' }}</h3>
-                    <p>{{ block.generated_by }} generated this slot.</p>
+                  {% endfor %}
+                </div>
+
+                <div class="calendar-body">
+                  <div class="time-rail">
+                    {% for label in time_labels %}
+                    <span>{{ label }}</span>
+                    {% endfor %}
                   </div>
-                </article>
-                {% endfor %}
-              {% else %}
-                <p class="empty-state">No planned blocks yet. Generate the schedule to populate this view.</p>
-              {% endif %}
+                  <div
+                    id="calendar-grid"
+                    class="calendar-grid"
+                    style="--day-count: {{ weekdays | length }}; --slot-count: {{ ((workday_end_hour - workday_start_hour) * 60 // slot_minutes) }};"
+                  >
+                    <div class="calendar-backdrop">
+                      {% for weekday in weekdays %}
+                      <div class="calendar-day-lane"></div>
+                      {% endfor %}
+                    </div>
+                    <div id="calendar-card-layer" class="calendar-card-layer"></div>
+                  </div>
+                </div>
+              </div>
+
+              <aside class="calendar-sidebar">
+                <section class="summary-card">
+                  <div class="summary-card-header">
+                    <p class="section-label">Priority Mix</p>
+                    <h3>Allocated time by priority</h3>
+                  </div>
+                  <div id="priority-breakdown" class="priority-breakdown">
+                    <p class="empty-state compact-empty">Generate a schedule to see how the optimiser spends time.</p>
+                  </div>
+                </section>
+
+                <section class="summary-card">
+                  <div class="summary-card-header">
+                    <p class="section-label">Scheduled Queue</p>
+                    <h3>Task placements</h3>
+                  </div>
+                  <div id="scheduled-queue" class="scheduled-queue">
+                    <p class="empty-state compact-empty">No task blocks are scheduled yet.</p>
+                  </div>
+                </section>
+              </aside>
             </div>
           </section>
 
@@ -208,7 +267,7 @@
                 <p class="section-label">Unscheduled</p>
                 <h2>What still does not fit</h2>
               </div>
-              <span class="panel-hint">Reasons appear after each schedule run.</span>
+              <span class="panel-hint">Reasons appear after each optimisation run.</span>
             </div>
 
             <ul id="unscheduled-list" class="reason-list">
@@ -225,7 +284,7 @@
             </div>
             <ol class="walkthrough-list">
               <li>Reset the scenario to a deterministic sample week.</li>
-              <li>Point out how events reserve fixed time and tasks carry priorities and deadlines.</li>
+              <li>Point out the locked calendar events, task priorities, and hard deadlines.</li>
               <li>Generate the schedule and show which tasks fit, which do not, and why.</li>
             </ol>
           </section>
@@ -236,51 +295,218 @@
     <script>
       const demoUserId = {{ demo_user.id }};
       const weekStart = "{{ week_start.isoformat() }}";
-      const plannedBlocksEl = document.getElementById("planned-blocks");
+      const workdayStartHour = {{ workday_start_hour }};
+      const workdayEndHour = {{ workday_end_hour }};
+      const slotMinutes = {{ slot_minutes }};
+      const initialTasks = {{ initial_tasks | tojson }};
+      const initialEvents = {{ initial_events | tojson }};
+      const initialBlocks = {{ initial_blocks | tojson }};
+
+      const totalSlotsPerDay = ((workdayEndHour - workdayStartHour) * 60) / slotMinutes;
+      const weekStartDate = new Date(`${weekStart}T00:00:00`);
+
+      const tasksById = new Map(initialTasks.map((task) => [task.id, task]));
+      const calendarCardLayerEl = document.getElementById("calendar-card-layer");
+      const priorityBreakdownEl = document.getElementById("priority-breakdown");
+      const scheduledQueueEl = document.getElementById("scheduled-queue");
       const unscheduledListEl = document.getElementById("unscheduled-list");
       const scheduleSummaryEl = document.getElementById("schedule-summary");
+      const scheduledHoursEl = document.getElementById("scheduled-hours");
+      const unscheduledTotalEl = document.getElementById("unscheduled-total");
 
-      async function requestJson(url, payload) {
-        const response = await fetch(url, {
+      let currentBlocks = [...initialBlocks];
+      let currentUnscheduled = null;
+
+      function requestJson(url, payload) {
+        return fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+        }).then(async (response) => {
+          if (!response.ok) {
+            const errorPayload = await response.json().catch(() => ({}));
+            throw new Error(errorPayload.detail || "Request failed");
+          }
+          return response.json();
         });
-
-        if (!response.ok) {
-          const errorPayload = await response.json().catch(() => ({}));
-          const message = errorPayload.detail || "Request failed";
-          throw new Error(message);
-        }
-
-        return response.json();
       }
 
-      function formatDateTime(value) {
-        return new Date(value).toLocaleString([], {
+      function localDate(value) {
+        return new Date(value);
+      }
+
+      function localDayIndex(value) {
+        const date = localDate(value);
+        const midnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        return Math.round((midnight - weekStartDate) / (1000 * 60 * 60 * 24));
+      }
+
+      function slotOffset(value) {
+        const date = localDate(value);
+        return ((date.getHours() - workdayStartHour) * 60 + date.getMinutes()) / slotMinutes;
+      }
+
+      function durationMinutes(startsAt, endsAt) {
+        return Math.max(30, Math.round((localDate(endsAt) - localDate(startsAt)) / 60000));
+      }
+
+      function formatDateTime(value, options = {}) {
+        return localDate(value).toLocaleString([], {
           weekday: "short",
           hour: "2-digit",
           minute: "2-digit",
+          ...options,
         });
       }
 
-      function renderBlocks(blocks) {
-        if (!blocks.length) {
-          plannedBlocksEl.innerHTML = '<p class="empty-state">No planned blocks were scheduled for this week.</p>';
+      function formatHours(minutes) {
+        const hours = minutes / 60;
+        return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
+      }
+
+      function priorityClass(priority) {
+        if (priority >= 5) return "p5";
+        if (priority >= 3) return "p3";
+        return "p1";
+      }
+
+      function taskBlockView(block) {
+        const task = tasksById.get(block.task_id) || {};
+        const priority = block.task_priority ?? task.priority ?? 0;
+        const category = block.task_category ?? task.category ?? "task";
+        const dueAt = block.task_due_at ?? task.due_at ?? null;
+        const durationMin = block.duration_min ?? durationMinutes(block.starts_at, block.ends_at);
+        return {
+          kind: "task",
+          title: block.task_title || task.title || "Planned block",
+          subtitle: category,
+          priority,
+          startsAt: block.starts_at,
+          endsAt: block.ends_at,
+          durationMin,
+          dueAt,
+          location: block.location,
+          generatedBy: block.generated_by,
+        };
+      }
+
+      function eventBlockView(event) {
+        return {
+          kind: "event",
+          title: event.title,
+          subtitle: event.source,
+          priority: null,
+          startsAt: event.starts_at,
+          endsAt: event.ends_at,
+          durationMin: durationMinutes(event.starts_at, event.ends_at),
+          dueAt: null,
+          location: event.location,
+          generatedBy: "calendar",
+        };
+      }
+
+      function renderCalendar(blocks) {
+        const fixedItems = initialEvents.map(eventBlockView);
+        const taskItems = blocks.map(taskBlockView);
+        const items = [...fixedItems, ...taskItems].sort((left, right) => {
+          const startDiff = localDate(left.startsAt) - localDate(right.startsAt);
+          if (startDiff !== 0) return startDiff;
+          return (right.durationMin || 0) - (left.durationMin || 0);
+        });
+
+        if (!items.length) {
+          calendarCardLayerEl.innerHTML = '<p class="empty-state floating-empty">No events or task blocks are available for this week.</p>';
           return;
         }
 
-        plannedBlocksEl.innerHTML = blocks
-          .map(
-            (block) => `
-              <article class="timeline-card">
-                <div class="timeline-time">
-                  <span>${formatDateTime(block.starts_at).split(",")[0]}</span>
-                  <strong>${formatDateTime(block.starts_at).split(", ")[1]} - ${new Date(block.ends_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong>
+        calendarCardLayerEl.innerHTML = items
+          .map((item) => {
+            const dayIndex = localDayIndex(item.startsAt);
+            const startSlot = Math.max(0, slotOffset(item.startsAt));
+            const slotSpan = Math.max(1, item.durationMin / slotMinutes);
+            const kindClass = item.kind === "event" ? "calendar-item-event" : `calendar-item-task ${priorityClass(item.priority || 0)}`;
+            const compactClass = slotSpan <= 2 ? "calendar-item-compact" : "";
+            const badge = item.kind === "event"
+              ? '<span class="mini-pill mini-pill-fixed">Locked</span>'
+              : `<span class="mini-pill mini-pill-${priorityClass(item.priority || 0)}">P${item.priority || 0}</span>`;
+            const meta = item.kind === "event"
+              ? `${item.subtitle}${item.location ? ` · ${item.location}` : ""}`
+              : `${item.subtitle}${item.dueAt ? ` · due ${formatDateTime(item.dueAt, { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : ""}`;
+
+            return `
+              <article
+                class="calendar-item ${kindClass} ${compactClass}"
+                style="--day-index: ${dayIndex}; --start-slot: ${startSlot}; --slot-span: ${slotSpan};"
+              >
+                <div class="calendar-item-top">
+                  ${badge}
+                  <span class="calendar-item-time">${localDate(item.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - ${localDate(item.endsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
-                <div class="timeline-copy">
-                  <h3>${block.task_title || "Planned block"}</h3>
-                  <p>${block.generated_by} generated this slot.</p>
+                <h3>${item.title}</h3>
+                <p>${meta}</p>
+              </article>
+            `;
+          })
+          .join("");
+      }
+
+      function renderPriorityBreakdown(blocks) {
+        const totals = new Map();
+        let totalMinutes = 0;
+
+        blocks.map(taskBlockView).forEach((block) => {
+          const priority = block.priority || 0;
+          totals.set(priority, (totals.get(priority) || 0) + block.durationMin);
+          totalMinutes += block.durationMin;
+        });
+
+        scheduledHoursEl.textContent = formatHours(totalMinutes);
+
+        if (!totalMinutes) {
+          priorityBreakdownEl.innerHTML = '<p class="empty-state compact-empty">Generate a schedule to see how the optimiser spends time.</p>';
+          return;
+        }
+
+        priorityBreakdownEl.innerHTML = [...totals.entries()]
+          .sort((left, right) => right[0] - left[0])
+          .map(([priority, minutes]) => {
+            const width = Math.max(8, Math.round((minutes / totalMinutes) * 100));
+            const band = priorityClass(priority);
+            return `
+              <div class="priority-row">
+                <div class="priority-row-label">
+                  <span class="priority-pill priority-pill-${band}">P${priority}</span>
+                  <strong>${formatHours(minutes)}</strong>
+                  <span>${Math.round((minutes / totalMinutes) * 100)}%</span>
+                </div>
+                <div class="priority-bar">
+                  <span class="priority-bar-fill priority-bar-${band}" style="width: ${width}%"></span>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function renderScheduledQueue(blocks) {
+        if (!blocks.length) {
+          scheduledQueueEl.innerHTML = '<p class="empty-state compact-empty">No task blocks are scheduled yet.</p>';
+          return;
+        }
+
+        scheduledQueueEl.innerHTML = blocks
+          .map(taskBlockView)
+          .sort((left, right) => localDate(left.startsAt) - localDate(right.startsAt))
+          .map(
+            (item) => `
+              <article class="queue-item">
+                <div>
+                  <span>${formatDateTime(item.startsAt)}</span>
+                  <strong>${item.title}</strong>
+                </div>
+                <div class="queue-meta">
+                  <span class="priority-pill priority-pill-${priorityClass(item.priority || 0)}">P${item.priority || 0}</span>
+                  <span>${formatHours(item.durationMin)}</span>
                 </div>
               </article>
             `,
@@ -289,6 +515,13 @@
       }
 
       function renderUnscheduled(tasks) {
+        if (tasks === null) {
+          unscheduledTotalEl.textContent = "0";
+          unscheduledListEl.innerHTML = '<li class="empty-state">No unscheduled tasks to show yet.</li>';
+          return;
+        }
+
+        unscheduledTotalEl.textContent = String(tasks.length);
         if (!tasks.length) {
           unscheduledListEl.innerHTML = '<li class="empty-state">All tasks were scheduled inside the demo week.</li>';
           return;
@@ -298,13 +531,41 @@
           .map(
             (task) => `
               <li class="reason-item">
-                <strong>${task.title}</strong>
-                <span>${task.est_duration_min} min · P${task.priority}</span>
+                <div>
+                  <strong>${task.title}</strong>
+                  <span>${task.est_duration_min} min · P${task.priority}${task.due_at ? ` · due ${formatDateTime(task.due_at)}` : ""}</span>
+                </div>
                 <em>${task.reason.replaceAll("_", " ")}</em>
               </li>
             `,
           )
           .join("");
+      }
+
+      function renderSummary(blocks, unscheduledTasks) {
+        if (!blocks.length) {
+          scheduleSummaryEl.textContent = "Locked events are visible now. Run the optimiser to place task blocks into the remaining capacity.";
+          return;
+        }
+
+        if (unscheduledTasks === null) {
+          scheduleSummaryEl.textContent = `${blocks.length} planned blocks are already layered onto the weekly calendar.`;
+          return;
+        }
+
+        const scheduledMinutes = blocks.reduce(
+          (total, block) => total + (block.duration_min ?? durationMinutes(block.starts_at, block.ends_at)),
+          0,
+        );
+        scheduleSummaryEl.textContent = `${blocks.length} task blocks scheduled across ${formatHours(scheduledMinutes)} of focus time, with ${unscheduledTasks.length} tasks left out.`;
+      }
+
+      function renderDashboard() {
+        renderCalendar(currentBlocks);
+        renderPriorityBreakdown(currentBlocks);
+        renderScheduledQueue(currentBlocks);
+        renderUnscheduled(currentUnscheduled);
+        renderSummary(currentBlocks, currentUnscheduled);
       }
 
       document.getElementById("task-form").addEventListener("submit", async (event) => {
@@ -344,10 +605,12 @@
           user_id: demoUserId,
           week_start: weekStart,
         });
-        scheduleSummaryEl.textContent = `${payload.scheduled_count} blocks scheduled, ${payload.unscheduled_count} tasks left unscheduled for the week.`;
-        renderBlocks(payload.blocks);
-        renderUnscheduled(payload.unscheduled_tasks);
+        currentBlocks = payload.blocks;
+        currentUnscheduled = payload.unscheduled_tasks;
+        renderDashboard();
       });
+
+      renderDashboard();
     </script>
   </body>
 </html>

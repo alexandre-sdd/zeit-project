@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -26,14 +26,23 @@ from app.db.session import get_db
 from app.core.settings import get_settings
 from app.services.demo_service import DEMO_WEEK_START, ensure_demo_data, reset_demo_data
 from app.services.planning_service import generate_schedule_for_user, list_blocks, list_events
-from app.services.schedule_policy import week_end_date
+from app.services.schedule_policy import SLOT_MINUTES, WORKDAY_END_HOUR, WORKDAY_START_HOUR, week_end_date
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 
+def _task_to_read(task: models.Task) -> TaskRead:
+    return TaskRead.model_validate(task)
+
+
+def _event_to_read(event: models.Event) -> EventRead:
+    return EventRead.model_validate(event)
+
+
 def _block_to_read(block: models.Block) -> BlockRead:
+    duration_min = int((block.ends_at - block.starts_at).total_seconds() // 60)
     return BlockRead(
         id=block.id,
         user_id=block.user_id,
@@ -41,8 +50,12 @@ def _block_to_read(block: models.Block) -> BlockRead:
         event_id=block.event_id,
         task_title=block.task.title if block.task is not None else None,
         event_title=block.event.title if block.event is not None else None,
+        task_priority=block.task.priority if block.task is not None else None,
+        task_category=block.task.category if block.task is not None else None,
+        task_due_at=block.task.due_at if block.task is not None else None,
         starts_at=block.starts_at,
         ends_at=block.ends_at,
+        duration_min=duration_min,
         location=block.location,
         status=block.status,
         lock_level=block.lock_level,
@@ -66,6 +79,17 @@ def _unscheduled_to_read(title: str, user_id: int, est_duration_min: int, priori
 def demo_page(request: Request, db: DbSession) -> HTMLResponse:
     """Render the recruiter-facing demo page."""
     state = ensure_demo_data(db)
+    task_payload = [_task_to_read(task).model_dump(mode="json") for task in state.tasks]
+    event_payload = [_event_to_read(event).model_dump(mode="json") for event in state.events]
+    block_payload = [_block_to_read(block).model_dump(mode="json") for block in state.blocks]
+    weekdays = [
+        {
+            "label": (state.week_start + timedelta(days=day_index)).strftime("%a"),
+            "date_label": (state.week_start + timedelta(days=day_index)).strftime("%b %d"),
+        }
+        for day_index in range(5)
+    ]
+    time_labels = [f"{hour:02d}:00" for hour in range(WORKDAY_START_HOUR, WORKDAY_END_HOUR + 1)]
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -81,6 +105,14 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
             "event_count": len(state.events),
             "block_count": len(state.blocks),
             "demo_week_start": DEMO_WEEK_START,
+            "initial_tasks": task_payload,
+            "initial_events": event_payload,
+            "initial_blocks": block_payload,
+            "weekdays": weekdays,
+            "time_labels": time_labels,
+            "workday_start_hour": WORKDAY_START_HOUR,
+            "workday_end_hour": WORKDAY_END_HOUR,
+            "slot_minutes": SLOT_MINUTES,
         },
     )
 
@@ -98,7 +130,7 @@ def list_tasks(db: DbSession, user_id: int | None = None):
     query = db.query(models.Task)
     if user_id is not None:
         query = query.filter(models.Task.user_id == user_id)
-    return query.order_by(models.Task.id.asc()).all()
+    return [_task_to_read(task) for task in query.order_by(models.Task.id.asc()).all()]
 
 
 @router.post("/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
@@ -127,7 +159,7 @@ def create_task(
 @router.get("/events", response_model=list[EventRead])
 def get_events(db: DbSession, user_id: int | None = None) -> list[EventRead]:
     """List events, optionally scoped to a specific user."""
-    return list_events(db, user_id=user_id)
+    return [_event_to_read(event) for event in list_events(db, user_id=user_id)]
 
 
 @router.post("/events", response_model=EventRead, status_code=status.HTTP_201_CREATED)

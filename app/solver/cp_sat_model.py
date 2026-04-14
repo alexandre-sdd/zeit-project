@@ -125,6 +125,15 @@ def _slot_to_datetime(slot_index: int, week_start: date) -> datetime:
     return datetime.combine(day, time(hour=WORKDAY_START_HOUR)) + timedelta(minutes=slot_offset * SLOT_MINUTES)
 
 
+def _slot_end_to_datetime(slot_index: int, week_start: date) -> datetime:
+    """Map a compressed end slot back to the wall-clock edge of the workday."""
+    if slot_index > 0 and slot_index % SLOTS_PER_DAY == 0:
+        day_index = (slot_index // SLOTS_PER_DAY) - 1
+        day = week_start + timedelta(days=day_index)
+        return datetime.combine(day, time(hour=WORKDAY_END_HOUR))
+    return _slot_to_datetime(slot_index, week_start)
+
+
 def _task_sort_key(task: Task) -> tuple[int, int, datetime, int, str]:
     due_bucket = 0 if task.due_is_hard else 1 if task.due_at is not None else 2
     due_value = task.due_at or datetime.max
@@ -201,7 +210,7 @@ def _build_schedule_greedy(tasks: list[Task], events: list[Event], week_start: d
                 task_id=task.id,
                 event_id=None,
                 starts_at=_slot_to_datetime(chosen_start, week_start),
-                ends_at=_slot_to_datetime(end_slot, week_start),
+                ends_at=_slot_end_to_datetime(end_slot, week_start),
                 location=task.preferred_location,
                 status="planned",
                 lock_level="none",
@@ -335,7 +344,7 @@ def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: d
                     task_id=task.id,
                     event_id=None,
                     starts_at=_slot_to_datetime(start_slot, week_start),
-                    ends_at=_slot_to_datetime(end_slot, week_start),
+                    ends_at=_slot_end_to_datetime(end_slot, week_start),
                     location=task.preferred_location,
                     status="planned",
                     lock_level="none",

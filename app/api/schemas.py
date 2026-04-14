@@ -77,8 +77,12 @@ class BlockRead(BaseModel):
     event_id: int | None = None
     task_title: str | None = None
     event_title: str | None = None
+    task_priority: int | None = None
+    task_category: str | None = None
+    task_due_at: datetime | None = None
     starts_at: datetime
     ends_at: datetime
+    duration_min: int
     location: str | None = None
     status: str
     lock_level: str

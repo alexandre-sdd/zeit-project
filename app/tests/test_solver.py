@@ -99,6 +99,20 @@ def test_solver_returns_partial_schedule_when_capacity_runs_out() -> None:
     assert any(item.reason == "no_capacity" for item in result.unscheduled_tasks)
 
 
+def test_solver_keeps_blocks_ending_at_workday_boundary_on_same_day() -> None:
+    result = build_schedule(
+        tasks=[
+            Task(id=1, user_id=1, title="Full day task", est_duration_min=480, priority=5),
+        ],
+        events=[],
+        options={"week_start": WEEK_START},
+    )
+
+    assert len(result.blocks) == 1
+    assert result.blocks[0].starts_at == datetime(2026, 4, 13, 9, 0)
+    assert result.blocks[0].ends_at == datetime(2026, 4, 13, 17, 0)
+
+
 def test_solver_marks_impossible_hard_due_tasks() -> None:
     result = build_schedule(
         tasks=[

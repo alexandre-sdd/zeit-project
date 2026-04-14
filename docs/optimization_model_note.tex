@@ -1,0 +1,152 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage[T1]{fontenc}
+
+\title{Zeit Optimisation Model Note}
+\author{Project Note}
+\date{April 14, 2026}
+
+\begin{document}
+\maketitle
+
+\section{Purpose}
+Zeit plans one workweek by assigning tasks to a Monday--Friday calendar with fixed events,
+30-minute granularity, hard deadlines, and finite working hours. The implementation uses a
+CP-SAT model when OR-Tools is available and falls back to a deterministic greedy heuristic
+when it is not.
+
+\section{Planning Horizon}
+Let
+\[
+D = \{1, \dots, 5\}
+\]
+be the workdays in the planning week and let each day contain
+\[
+H = 16
+\]
+half-hour slots corresponding to the window \(09{:}00\) to \(17{:}00\). The compressed weekly
+slot set is
+\[
+S = \{0, \dots, 79\}.
+\]
+This compressed index is a modelling device: nights are omitted from the optimisation state,
+even though the final UI renders the selected slots back onto a wall-clock calendar.
+
+\section{Inputs}
+For each task \(i \in T\), the model takes:
+\begin{itemize}
+  \item duration \(p_i\) measured in 30-minute slots,
+  \item priority \(w_i \ge 0\),
+  \item optional due date \(d_i\),
+  \item hard-deadline flag \(h_i \in \{0,1\}\).
+\end{itemize}
+
+For each fixed event \(e \in E\), the model derives a busy interval on the compressed slot axis.
+Those intervals are immutable and remove capacity from the feasible region.
+
+\section{Decision Variables}
+For each task \(i \in T\):
+\begin{align*}
+  x_i &\in \{0,1\} && \text{1 if task } i \text{ is scheduled,} \\
+  s_i &\in \mathcal{S}_i && \text{start slot, drawn from the valid start domain,} \\
+  f_i &= s_i + p_i && \text{finish slot.}
+\end{align*}
+
+The valid start set \(\mathcal{S}_i\) is precomputed so that a task remains inside one workday.
+If \(h_i = 1\), starts that would force the task to finish after the hard deadline are removed
+from \(\mathcal{S}_i\) before the solver runs.
+
+For tasks with a soft due date, the CP-SAT model also introduces
+\[
+o_i \in \{0,1\},
+\]
+where \(o_i = 1\) means the scheduled task finishes on time.
+
+\section{Constraints}
+
+\subsection{Single Contiguous Block}
+Each task can occupy at most one interval:
+\[
+[s_i, f_i)
+\]
+with fixed length \(p_i\). Task splitting is not allowed in the current version.
+
+\subsection{No Overlap}
+All scheduled task intervals and all fixed event intervals satisfy a global non-overlap condition:
+\[
+[s_i, f_i) \cap [s_j, f_j) = \emptyset \quad \forall i \ne j,
+\]
+and no scheduled task may intersect any fixed event interval. In OR-Tools this is expressed
+with \texttt{AddNoOverlap} over optional task intervals plus constant event intervals.
+
+\subsection{Hard Deadlines}
+If task \(i\) has a hard deadline, then
+\[
+f_i \le d_i
+\]
+whenever \(x_i = 1\). If no feasible start remains after combining the workday boundary and the
+busy-event exclusions, the task is declared unscheduled with reason \texttt{hard\_due\_conflict}.
+
+\subsection{Capacity and Feasibility Filters}
+Tasks longer than a full workday are removed before optimisation:
+\[
+p_i > H \implies i \text{ is unscheduled.}
+\]
+This is reported as \texttt{outside\_work\_window}.
+
+\section{Objective}
+The CP-SAT objective is a weighted lexicographic approximation implemented as a single linear
+maximisation:
+\[
+\max \sum_{i \in T}
+\left(
+10000 \, w_i p_i x_i
++ 500 \, w_i o_i
++ (|S| - s_i) x_i
+\right).
+\]
+
+The three components mean:
+\begin{itemize}
+  \item schedule high-priority, long-duration tasks first,
+  \item prefer finishing due-dated work on time,
+  \item break ties toward earlier starts in the week.
+\end{itemize}
+
+Because the coefficient on \(x_i\) dominates the others, the model first maximises useful
+scheduled work, then uses due-date performance and earliness as secondary preferences.
+
+\section{Greedy Fallback}
+When OR-Tools is unavailable, tasks are sorted by:
+\begin{enumerate}
+  \item descending priority,
+  \item hard due dates before soft due dates before undated work,
+  \item earlier due dates,
+  \item longer durations,
+  \item title as a deterministic tiebreaker.
+\end{enumerate}
+The heuristic then places each task in the first feasible slot that avoids current busy intervals.
+This does not guarantee optimality, but it preserves the same business rules and produces a stable
+demo schedule.
+
+\section{Current Modelling Limits}
+\begin{itemize}
+  \item Each task is a single contiguous block.
+  \item Only one workweek is considered at a time.
+  \item Context switching, travel, and preferred sequencing are not modelled yet.
+  \item Priority is treated as a scalar weight rather than a richer utility curve.
+\end{itemize}
+
+\section{UI Interpretation}
+The calendar UI should therefore display three distinct outcomes:
+\begin{itemize}
+  \item locked event slots that are fixed by the input calendar,
+  \item scheduled task blocks placed by the optimiser and coloured by priority,
+  \item unscheduled tasks with explicit infeasibility reasons.
+\end{itemize}
+This makes the optimisation result interpretable without exposing solver internals directly.
+
+\end{document}
