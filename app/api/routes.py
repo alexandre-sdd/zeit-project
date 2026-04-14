@@ -28,7 +28,14 @@ from app.core.settings import get_settings
 from app.services.demo_service import DEMO_WEEK_START, ensure_demo_data, reset_demo_data
 from app.services.calendar_export import schedule_to_ics
 from app.services.planning_service import generate_schedule_for_user, list_blocks, list_events
-from app.services.schedule_policy import SLOT_MINUTES, WORKDAY_END_HOUR, WORKDAY_START_HOUR, week_bounds, week_end_date
+from app.services.schedule_policy import (
+    SLOT_MINUTES,
+    default_workday_window,
+    minutes_to_time_value,
+    week_bounds,
+    week_end_date,
+    workday_time_labels,
+)
 from app.solver.cp_sat_model import get_solver_runtime_status
 
 router = APIRouter()
@@ -92,6 +99,7 @@ def _unscheduled_to_read(title: str, user_id: int, est_duration_min: int, priori
 def demo_page(request: Request, db: DbSession) -> HTMLResponse:
     """Render the visitor-facing demo page."""
     state = ensure_demo_data(db)
+    workday_window = default_workday_window()
     task_payload = [_task_to_read(task).model_dump(mode="json") for task in state.tasks]
     event_payload = [_event_to_read(event).model_dump(mode="json") for event in state.events]
     block_payload = [_block_to_read(block).model_dump(mode="json") for block in state.blocks]
@@ -102,7 +110,7 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
         }
         for day_index in range(5)
     ]
-    time_labels = [f"{hour:02d}:00" for hour in range(WORKDAY_START_HOUR, WORKDAY_END_HOUR + 1)]
+    time_labels = workday_time_labels(workday_window)
     runtime = get_solver_runtime_status()
     initial_solver_run = SolverRunRead(
         engine=runtime.engine,
@@ -138,8 +146,9 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
             "initial_blocks": block_payload,
             "weekdays": weekdays,
             "time_labels": time_labels,
-            "workday_start_hour": WORKDAY_START_HOUR,
-            "workday_end_hour": WORKDAY_END_HOUR,
+            "workday_start_value": minutes_to_time_value(workday_window.start_minutes),
+            "workday_end_value": minutes_to_time_value(workday_window.end_minutes),
+            "workday_slot_count": workday_window.slots_per_day,
             "slot_minutes": SLOT_MINUTES,
             "initial_solver_run": initial_solver_run.model_dump(mode="json"),
             "assets": {
@@ -292,6 +301,8 @@ def generate_schedule(
             db,
             user_id=payload.user_id,
             week_start=payload.week_start,
+            workday_start=payload.workday_start,
+            workday_end=payload.workday_end,
         )
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

@@ -3,9 +3,11 @@ Pydantic schemas exposed by the HTTP API.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.services.schedule_policy import SLOT_MINUTES, time_to_minutes
 
 
 class HealthResponse(BaseModel):
@@ -110,6 +112,23 @@ class SolverRunRead(BaseModel):
 class ScheduleGenerateRequest(BaseModel):
     user_id: int = Field(..., gt=0)
     week_start: date
+    workday_start: time | None = None
+    workday_end: time | None = None
+
+    @model_validator(mode="after")
+    def validate_workday_window(self) -> ScheduleGenerateRequest:
+        if (self.workday_start is None) != (self.workday_end is None):
+            raise ValueError("`workday_start` and `workday_end` must be provided together")
+        if self.workday_start is None or self.workday_end is None:
+            return self
+
+        start_minutes = time_to_minutes(self.workday_start)
+        end_minutes = time_to_minutes(self.workday_end)
+        if start_minutes >= end_minutes:
+            raise ValueError("`workday_start` must be earlier than `workday_end`")
+        if start_minutes % SLOT_MINUTES != 0 or end_minutes % SLOT_MINUTES != 0:
+            raise ValueError(f"Workday times must align to {SLOT_MINUTES}-minute increments")
+        return self
 
 
 class ScheduleGenerateResponse(BaseModel):

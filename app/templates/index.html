@@ -27,6 +27,30 @@
             <span>Planning Window</span>
             <strong>{{ week_start.isoformat() }} to {{ week_end.isoformat() }}</strong>
           </div>
+          <div class="meta-block workday-config">
+            <span>Working Window</span>
+            <div class="window-controls">
+              <label class="window-field" for="workday-start">
+                <span>Start</span>
+                <input
+                  id="workday-start"
+                  type="time"
+                  step="{{ slot_minutes * 60 }}"
+                  value="{{ workday_start_value }}"
+                />
+              </label>
+              <label class="window-field" for="workday-end">
+                <span>End</span>
+                <input
+                  id="workday-end"
+                  type="time"
+                  step="{{ slot_minutes * 60 }}"
+                  value="{{ workday_end_value }}"
+                />
+              </label>
+            </div>
+            <p class="window-note">Preview updates immediately. Generate Schedule uses this window for the current run.</p>
+          </div>
           <div class="chip-row">
             <span class="chip chip-warm">{{ task_count }} tasks</span>
             <span class="chip chip-cool">{{ event_count }} locked events</span>
@@ -240,7 +264,7 @@
               </div>
 
               <div class="calendar-body">
-                <div class="time-rail">
+                <div id="time-rail" class="time-rail" style="--slot-count: {{ workday_slot_count }};">
                   {% for label in time_labels %}
                   <span>{{ label }}</span>
                   {% endfor %}
@@ -248,7 +272,7 @@
                 <div
                   id="calendar-grid"
                   class="calendar-grid"
-                  style="--day-count: {{ weekdays | length }}; --slot-count: {{ ((workday_end_hour - workday_start_hour) * 60 // slot_minutes) }};"
+                  style="--day-count: {{ weekdays | length }}; --slot-count: {{ workday_slot_count }};"
                 >
                   <div class="calendar-backdrop">
                     {% for weekday in weekdays %}
@@ -335,8 +359,8 @@
             <div class="visitor-note">
               <strong>Known limits</strong>
               <p>
-                This version still cannot break tasks into smaller blocks and cannot relax the
-                Monday-Friday 09:00-17:00 planning window.
+                This version still cannot break tasks into smaller blocks, and the working window
+                chooser applies to the current planning run rather than persisting as a user preference.
               </p>
             </div>
           </section>
@@ -360,8 +384,8 @@
     <script>
       const demoUserId = {{ demo_user.id }};
       const weekStart = "{{ week_start.isoformat() }}";
-      const workdayStartHour = {{ workday_start_hour }};
-      const workdayEndHour = {{ workday_end_hour }};
+      const initialWorkdayStart = "{{ workday_start_value }}";
+      const initialWorkdayEnd = "{{ workday_end_value }}";
       const slotMinutes = {{ slot_minutes }};
       const initialTasks = {{ initial_tasks | tojson }};
       const initialEvents = {{ initial_events | tojson }};
@@ -369,10 +393,13 @@
       const initialSolverRun = {{ initial_solver_run | tojson }};
       const routes = {{ routes | tojson }};
 
-      const totalSlotsPerDay = ((workdayEndHour - workdayStartHour) * 60) / slotMinutes;
       const weekStartDate = new Date(`${weekStart}T00:00:00`);
 
       const tasksById = new Map(initialTasks.map((task) => [task.id, task]));
+      const workdayStartInputEl = document.getElementById("workday-start");
+      const workdayEndInputEl = document.getElementById("workday-end");
+      const timeRailEl = document.getElementById("time-rail");
+      const calendarGridEl = document.getElementById("calendar-grid");
       const calendarCardLayerEl = document.getElementById("calendar-card-layer");
       const priorityBreakdownEl = document.getElementById("priority-breakdown");
       const scheduledQueueEl = document.getElementById("scheduled-queue");
@@ -385,6 +412,8 @@
       let currentBlocks = [...initialBlocks];
       let currentUnscheduled = null;
       let currentSolverRun = initialSolverRun;
+      let currentWorkdayStartMinutes = parseTimeValue(initialWorkdayStart);
+      let currentWorkdayEndMinutes = parseTimeValue(initialWorkdayEnd);
 
       function request(url, { method = "POST", payload = undefined } = {}) {
         const options = { method, headers: {} };
@@ -409,15 +438,119 @@
         return new Date(value);
       }
 
+      function parseTimeValue(value) {
+        if (typeof value !== "string" || !value.includes(":")) {
+          return Number.NaN;
+        }
+        const [hours, minutes] = value.split(":").map(Number);
+        if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+          return Number.NaN;
+        }
+        return (hours * 60) + minutes;
+      }
+
+      function formatTimeValue(totalMinutes) {
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+      }
+
+      function setDateToMinutes(date, totalMinutes) {
+        const nextDate = new Date(date);
+        nextDate.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+        return nextDate;
+      }
+
+      function totalSlotsPerDay() {
+        return (currentWorkdayEndMinutes - currentWorkdayStartMinutes) / slotMinutes;
+      }
+
+      function buildTimeLabels() {
+        const labels = [formatTimeValue(currentWorkdayStartMinutes)];
+        let nextMinutes = currentWorkdayStartMinutes + 60;
+        while (nextMinutes < currentWorkdayEndMinutes) {
+          labels.push(formatTimeValue(nextMinutes));
+          nextMinutes += 60;
+        }
+        const endLabel = formatTimeValue(currentWorkdayEndMinutes);
+        if (labels[labels.length - 1] !== endLabel) {
+          labels.push(endLabel);
+        }
+        return labels;
+      }
+
+      function readWorkdayWindowFromInputs() {
+        const startMinutes = parseTimeValue(workdayStartInputEl.value);
+        const endMinutes = parseTimeValue(workdayEndInputEl.value);
+        if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes)) {
+          return null;
+        }
+        if (startMinutes >= endMinutes) {
+          return null;
+        }
+        if (startMinutes % slotMinutes !== 0 || endMinutes % slotMinutes !== 0) {
+          return null;
+        }
+        return { startMinutes, endMinutes };
+      }
+
+      function syncWorkdayValidity() {
+        const errorMessage = readWorkdayWindowFromInputs() === null
+          ? `Use a start time before the end time in ${slotMinutes}-minute steps.`
+          : "";
+        workdayStartInputEl.setCustomValidity(errorMessage);
+        workdayEndInputEl.setCustomValidity(errorMessage);
+      }
+
+      function syncCalendarChrome() {
+        const slotCount = String(totalSlotsPerDay());
+        calendarGridEl.style.setProperty("--slot-count", slotCount);
+        timeRailEl.style.setProperty("--slot-count", slotCount);
+        timeRailEl.innerHTML = buildTimeLabels()
+          .map((label) => `<span>${label}</span>`)
+          .join("");
+      }
+
+      function applyWorkdayPreview() {
+        syncWorkdayValidity();
+        const workdayWindow = readWorkdayWindowFromInputs();
+        if (workdayWindow === null) {
+          return false;
+        }
+        currentWorkdayStartMinutes = workdayWindow.startMinutes;
+        currentWorkdayEndMinutes = workdayWindow.endMinutes;
+        syncCalendarChrome();
+        renderDashboard();
+        return true;
+      }
+
       function localDayIndex(value) {
         const date = localDate(value);
         const midnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
         return Math.round((midnight - weekStartDate) / (1000 * 60 * 60 * 24));
       }
 
-      function slotOffset(value) {
-        const date = localDate(value);
-        return ((date.getHours() - workdayStartHour) * 60 + date.getMinutes()) / slotMinutes;
+      function visibleCalendarLayout(item) {
+        const startDate = localDate(item.startsAt);
+        const endDate = localDate(item.endsAt);
+        const dayIndex = localDayIndex(item.startsAt);
+        if (dayIndex < 0 || dayIndex >= 5) {
+          return null;
+        }
+
+        const dayStart = setDateToMinutes(new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()), currentWorkdayStartMinutes);
+        const dayEnd = setDateToMinutes(dayStart, currentWorkdayEndMinutes);
+        const visibleStartMs = Math.max(startDate.getTime(), dayStart.getTime());
+        const visibleEndMs = Math.min(endDate.getTime(), dayEnd.getTime());
+        if (visibleStartMs >= visibleEndMs) {
+          return null;
+        }
+
+        return {
+          dayIndex,
+          startSlot: (visibleStartMs - dayStart.getTime()) / (slotMinutes * 60 * 1000),
+          slotSpan: (visibleEndMs - visibleStartMs) / (slotMinutes * 60 * 1000),
+        };
       }
 
       function durationMinutes(startsAt, endsAt) {
@@ -546,13 +679,14 @@
           return;
         }
 
-        calendarCardLayerEl.innerHTML = items
+        const renderedItems = items
           .map((item) => {
-            const dayIndex = localDayIndex(item.startsAt);
-            const startSlot = Math.max(0, slotOffset(item.startsAt));
-            const slotSpan = Math.max(1, item.durationMin / slotMinutes);
+            const layout = visibleCalendarLayout(item);
+            if (!layout) {
+              return "";
+            }
             const kindClass = item.kind === "event" ? "calendar-item-event" : `calendar-item-task ${priorityClass(item.priority || 0)}`;
-            const densityClass = calendarDensityClass(slotSpan);
+            const densityClass = calendarDensityClass(layout.slotSpan);
             const badge = item.kind === "event"
               ? `<span class="mini-pill mini-pill-fixed">${calendarBadgeLabel(item, densityClass)}</span>`
               : `<span class="mini-pill mini-pill-${priorityClass(item.priority || 0)}">${calendarBadgeLabel(item, densityClass)}</span>`;
@@ -566,7 +700,7 @@
             return `
               <article
                 class="calendar-item ${kindClass} ${densityClass}"
-                style="--day-index: ${dayIndex}; --start-slot: ${startSlot}; --slot-span: ${slotSpan};"
+                style="--day-index: ${layout.dayIndex}; --start-slot: ${layout.startSlot}; --slot-span: ${layout.slotSpan};"
                 title="${tooltip}"
               >
                 <div class="calendar-item-top">
@@ -578,7 +712,11 @@
               </article>
             `;
           })
-          .join("");
+          .filter(Boolean);
+
+        calendarCardLayerEl.innerHTML = renderedItems.length
+          ? renderedItems.join("")
+          : '<p class="empty-state floating-empty">No events or task blocks are visible inside the selected work window.</p>';
       }
 
       function renderPriorityBreakdown(blocks) {
@@ -805,10 +943,16 @@
       });
 
       document.getElementById("generate-schedule").addEventListener("click", async () => {
+        if (!applyWorkdayPreview()) {
+          workdayEndInputEl.reportValidity();
+          return;
+        }
         const payload = await request(routes.generate_schedule, {
           payload: {
             user_id: demoUserId,
             week_start: weekStart,
+            workday_start: formatTimeValue(currentWorkdayStartMinutes),
+            workday_end: formatTimeValue(currentWorkdayEndMinutes),
           },
         });
         currentBlocks = payload.blocks;
@@ -839,6 +983,14 @@
         });
       });
 
+      [workdayStartInputEl, workdayEndInputEl].forEach((input) => {
+        input.addEventListener("input", () => {
+          applyWorkdayPreview();
+        });
+      });
+
+      syncWorkdayValidity();
+      syncCalendarChrome();
       renderDashboard();
     </script>
   </body>

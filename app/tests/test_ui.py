@@ -14,6 +14,9 @@ def test_root_page_renders_seeded_demo(client: TestClient) -> None:
     assert "Optimisation calendar" in response.text
     assert "Allocated time by priority" in response.text
     assert "Runtime status" in response.text
+    assert "Working Window" in response.text
+    assert 'id="workday-start"' in response.text
+    assert 'id="workday-end"' in response.text
     assert "Next steps" in response.text
     assert "Google Calendar, Slack" in response.text
     assert "cannot break tasks into smaller blocks" in response.text

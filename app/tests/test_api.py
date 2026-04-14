@@ -209,3 +209,46 @@ def test_demo_reset_and_schedule_generation_replace_prior_blocks(client: TestCli
     assert second_run.status_code == 200
     second_payload = second_run.json()
     assert second_payload["scheduled_count"] == first_payload["scheduled_count"]
+
+
+def test_schedule_generation_accepts_custom_workday_window(client: TestClient) -> None:
+    task_response = client.post(
+        "/tasks",
+        json={
+            "user_id": 1,
+            "title": "Morning focus",
+            "est_duration_min": 240,
+            "priority": 4,
+        },
+    )
+    assert task_response.status_code == 201
+
+    response = client.post(
+        "/schedule/generate",
+        json={
+            "user_id": 1,
+            "week_start": "2026-04-13",
+            "workday_start": "08:00",
+            "workday_end": "12:00",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["scheduled_count"] == 1
+    assert payload["blocks"][0]["starts_at"] == "2026-04-13T08:00:00"
+    assert payload["blocks"][0]["ends_at"] == "2026-04-13T12:00:00"
+
+
+def test_schedule_generation_rejects_invalid_workday_window(client: TestClient) -> None:
+    response = client.post(
+        "/schedule/generate",
+        json={
+            "user_id": 1,
+            "week_start": "2026-04-13",
+            "workday_start": "08:15",
+            "workday_end": "12:00",
+        },
+    )
+
+    assert response.status_code == 422

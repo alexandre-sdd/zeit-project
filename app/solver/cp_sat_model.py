@@ -17,10 +17,8 @@ from typing import Any
 from app.domain.entities import Block, Event, ScheduleResult, SolverRun, Task, UnscheduledTask
 from app.services.schedule_policy import (
     SLOT_MINUTES,
-    SLOTS_PER_DAY,
-    TOTAL_WEEKLY_SLOTS,
-    WORKDAY_END_HOUR,
-    WORKDAY_START_HOUR,
+    WorkdayWindow,
+    resolve_workday_window,
     WORKDAYS_PER_WEEK,
     slot_count,
 )
@@ -42,14 +40,16 @@ def _merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
 def _event_busy_intervals(
     events: list[Event],
     week_start: date,
+    workday_window: WorkdayWindow,
 ) -> tuple[list[tuple[int, int]], dict[int, list[tuple[int, int]]]]:
     daily_busy: dict[int, list[tuple[int, int]]] = {day_index: [] for day_index in range(WORKDAYS_PER_WEEK)}
+    slots_per_day = workday_window.slots_per_day
 
     for event in events:
         for day_index in range(WORKDAYS_PER_WEEK):
             day = week_start + timedelta(days=day_index)
-            day_start = datetime.combine(day, time(hour=WORKDAY_START_HOUR))
-            day_end = datetime.combine(day, time(hour=WORKDAY_END_HOUR))
+            day_start = datetime.combine(day, workday_window.start_time)
+            day_end = datetime.combine(day, workday_window.end_time)
 
             overlap_start = max(event.starts_at, day_start)
             overlap_end = min(event.ends_at, day_end)
@@ -59,7 +59,7 @@ def _event_busy_intervals(
             start_minutes = (overlap_start - day_start).total_seconds() / 60
             end_minutes = (overlap_end - day_start).total_seconds() / 60
             start_slot = max(0, floor(start_minutes / SLOT_MINUTES))
-            end_slot = min(SLOTS_PER_DAY, ceil(end_minutes / SLOT_MINUTES))
+            end_slot = min(slots_per_day, ceil(end_minutes / SLOT_MINUTES))
             if end_slot > start_slot:
                 daily_busy[day_index].append((start_slot, end_slot))
 
@@ -67,31 +67,32 @@ def _event_busy_intervals(
     for day_index, intervals in daily_busy.items():
         merged = _merge_intervals(intervals)
         daily_busy[day_index] = merged
-        day_offset = day_index * SLOTS_PER_DAY
+        day_offset = day_index * slots_per_day
         for start_slot, end_slot in merged:
             global_intervals.append((day_offset + start_slot, end_slot - start_slot))
     return global_intervals, daily_busy
 
 
-def _latest_end_slot(due_at: datetime, week_start: date) -> int:
+def _latest_end_slot(due_at: datetime, week_start: date, workday_window: WorkdayWindow) -> int:
     day_index = (due_at.date() - week_start).days
+    slots_per_day = workday_window.slots_per_day
     if day_index < 0:
         return 0
     if day_index >= WORKDAYS_PER_WEEK:
-        return TOTAL_WEEKLY_SLOTS
+        return workday_window.total_weekly_slots
 
-    day_start = datetime.combine(due_at.date(), time(hour=WORKDAY_START_HOUR))
+    day_start = datetime.combine(due_at.date(), workday_window.start_time)
     minutes_since_day_start = (due_at - day_start).total_seconds() / 60
     slot_limit = floor(minutes_since_day_start / SLOT_MINUTES)
-    slot_limit = max(0, min(SLOTS_PER_DAY, slot_limit))
-    return (day_index * SLOTS_PER_DAY) + slot_limit
+    slot_limit = max(0, min(slots_per_day, slot_limit))
+    return (day_index * slots_per_day) + slot_limit
 
 
-def _valid_starts(duration_slots: int, *, latest_end: int | None = None) -> list[int]:
+def _valid_starts(duration_slots: int, *, slots_per_day: int, latest_end: int | None = None) -> list[int]:
     starts: list[int] = []
     for day_index in range(WORKDAYS_PER_WEEK):
-        day_offset = day_index * SLOTS_PER_DAY
-        for start_slot in range(SLOTS_PER_DAY - duration_slots + 1):
+        day_offset = day_index * slots_per_day
+        for start_slot in range(slots_per_day - duration_slots + 1):
             absolute_start = day_offset + start_slot
             absolute_end = absolute_start + duration_slots
             if latest_end is not None and absolute_end > latest_end:
@@ -109,29 +110,33 @@ def _has_window_outside_fixed_events(
     starts: list[int],
     duration_slots: int,
     busy_by_day: dict[int, list[tuple[int, int]]],
+    *,
+    slots_per_day: int,
 ) -> bool:
     for absolute_start in starts:
-        day_index = absolute_start // SLOTS_PER_DAY
-        day_start = absolute_start % SLOTS_PER_DAY
+        day_index = absolute_start // slots_per_day
+        day_start = absolute_start % slots_per_day
         if not _overlaps_busy(busy_by_day[day_index], day_start, duration_slots):
             return True
     return False
 
 
-def _slot_to_datetime(slot_index: int, week_start: date) -> datetime:
-    day_index = slot_index // SLOTS_PER_DAY
-    slot_offset = slot_index % SLOTS_PER_DAY
+def _slot_to_datetime(slot_index: int, week_start: date, workday_window: WorkdayWindow) -> datetime:
+    slots_per_day = workday_window.slots_per_day
+    day_index = slot_index // slots_per_day
+    slot_offset = slot_index % slots_per_day
     day = week_start + timedelta(days=day_index)
-    return datetime.combine(day, time(hour=WORKDAY_START_HOUR)) + timedelta(minutes=slot_offset * SLOT_MINUTES)
+    return datetime.combine(day, workday_window.start_time) + timedelta(minutes=slot_offset * SLOT_MINUTES)
 
 
-def _slot_end_to_datetime(slot_index: int, week_start: date) -> datetime:
+def _slot_end_to_datetime(slot_index: int, week_start: date, workday_window: WorkdayWindow) -> datetime:
     """Map a compressed end slot back to the wall-clock edge of the workday."""
-    if slot_index > 0 and slot_index % SLOTS_PER_DAY == 0:
-        day_index = (slot_index // SLOTS_PER_DAY) - 1
+    slots_per_day = workday_window.slots_per_day
+    if slot_index > 0 and slot_index % slots_per_day == 0:
+        day_index = (slot_index // slots_per_day) - 1
         day = week_start + timedelta(days=day_index)
-        return datetime.combine(day, time(hour=WORKDAY_END_HOUR))
-    return _slot_to_datetime(slot_index, week_start)
+        return datetime.combine(day, workday_window.end_time)
+    return _slot_to_datetime(slot_index, week_start, workday_window)
 
 
 def _task_sort_key(task: Task) -> tuple[int, int, datetime, int, str]:
@@ -176,18 +181,30 @@ def get_solver_runtime_status() -> SolverRun:
     )
 
 
-def _available_starts_for_soft_due(task: Task, duration_slots: int, starts: list[int], week_start: date) -> list[int]:
+def _available_starts_for_soft_due(
+    task: Task,
+    duration_slots: int,
+    starts: list[int],
+    week_start: date,
+    workday_window: WorkdayWindow,
+) -> list[int]:
     if task.due_at is None:
         return starts
 
-    due_slot = _latest_end_slot(task.due_at, week_start)
+    due_slot = _latest_end_slot(task.due_at, week_start, workday_window)
     on_time = [start for start in starts if start + duration_slots <= due_slot]
     late = [start for start in starts if start + duration_slots > due_slot]
     return on_time + late
 
 
-def _build_schedule_greedy(tasks: list[Task], events: list[Event], week_start: date) -> ScheduleResult:
-    _, fixed_busy = _event_busy_intervals(events, week_start)
+def _build_schedule_greedy(
+    tasks: list[Task],
+    events: list[Event],
+    week_start: date,
+    workday_window: WorkdayWindow,
+) -> ScheduleResult:
+    _, fixed_busy = _event_busy_intervals(events, week_start, workday_window)
+    slots_per_day = workday_window.slots_per_day
     current_busy = {day_index: list(intervals) for day_index, intervals in fixed_busy.items()}
 
     blocks: list[Block] = []
@@ -195,25 +212,34 @@ def _build_schedule_greedy(tasks: list[Task], events: list[Event], week_start: d
 
     for task in sorted(tasks, key=_task_sort_key):
         duration_slots = slot_count(task.est_duration_min)
-        if duration_slots > SLOTS_PER_DAY:
+        if duration_slots > slots_per_day:
             unscheduled.append(_make_unscheduled(task, "outside_work_window"))
             continue
 
-        latest_end = _latest_end_slot(task.due_at, week_start) if task.due_at else None
-        valid_starts = _valid_starts(duration_slots, latest_end=latest_end if task.due_is_hard else None)
+        latest_end = _latest_end_slot(task.due_at, week_start, workday_window) if task.due_at else None
+        valid_starts = _valid_starts(
+            duration_slots,
+            slots_per_day=slots_per_day,
+            latest_end=latest_end if task.due_is_hard else None,
+        )
         if not valid_starts:
             unscheduled.append(_make_unscheduled(task, "hard_due_conflict" if task.due_is_hard else "outside_work_window"))
             continue
 
-        if task.due_is_hard and not _has_window_outside_fixed_events(valid_starts, duration_slots, fixed_busy):
+        if task.due_is_hard and not _has_window_outside_fixed_events(
+            valid_starts,
+            duration_slots,
+            fixed_busy,
+            slots_per_day=slots_per_day,
+        ):
             unscheduled.append(_make_unscheduled(task, "hard_due_conflict"))
             continue
 
-        candidate_starts = _available_starts_for_soft_due(task, duration_slots, valid_starts, week_start)
+        candidate_starts = _available_starts_for_soft_due(task, duration_slots, valid_starts, week_start, workday_window)
         chosen_start: int | None = None
         for absolute_start in candidate_starts:
-            day_index = absolute_start // SLOTS_PER_DAY
-            day_slot = absolute_start % SLOTS_PER_DAY
+            day_index = absolute_start // slots_per_day
+            day_slot = absolute_start % slots_per_day
             if _overlaps_busy(current_busy[day_index], day_slot, duration_slots):
                 continue
             chosen_start = absolute_start
@@ -232,8 +258,8 @@ def _build_schedule_greedy(tasks: list[Task], events: list[Event], week_start: d
                 user_id=task.user_id,
                 task_id=task.id,
                 event_id=None,
-                starts_at=_slot_to_datetime(chosen_start, week_start),
-                ends_at=_slot_end_to_datetime(end_slot, week_start),
+                starts_at=_slot_to_datetime(chosen_start, week_start, workday_window),
+                ends_at=_slot_end_to_datetime(end_slot, week_start, workday_window),
                 location=task.preferred_location,
                 status="planned",
                 lock_level="none",
@@ -266,13 +292,20 @@ def _load_cp_model():
     return cp_model
 
 
-def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: date) -> ScheduleResult | None:
+def _build_schedule_cp_sat(
+    tasks: list[Task],
+    events: list[Event],
+    week_start: date,
+    workday_window: WorkdayWindow,
+) -> ScheduleResult | None:
     cp_model = _load_cp_model()
     if cp_model is None:
         return None
 
     model = cp_model.CpModel()
-    busy_intervals, busy_by_day = _event_busy_intervals(events, week_start)
+    busy_intervals, busy_by_day = _event_busy_intervals(events, week_start, workday_window)
+    slots_per_day = workday_window.slots_per_day
+    total_weekly_slots = workday_window.total_weekly_slots
     intervals = []
     for index, (start_slot, duration_slots) in enumerate(busy_intervals):
         start_const = model.NewConstant(start_slot)
@@ -284,17 +317,26 @@ def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: d
 
     for task in tasks:
         duration_slots = slot_count(task.est_duration_min)
-        if duration_slots > SLOTS_PER_DAY:
+        if duration_slots > slots_per_day:
             unscheduled_tasks.append(_make_unscheduled(task, "outside_work_window"))
             continue
 
-        latest_end = _latest_end_slot(task.due_at, week_start) if task.due_at else None
-        valid_starts = _valid_starts(duration_slots, latest_end=latest_end if task.due_is_hard else None)
+        latest_end = _latest_end_slot(task.due_at, week_start, workday_window) if task.due_at else None
+        valid_starts = _valid_starts(
+            duration_slots,
+            slots_per_day=slots_per_day,
+            latest_end=latest_end if task.due_is_hard else None,
+        )
         if not valid_starts:
             unscheduled_tasks.append(_make_unscheduled(task, "hard_due_conflict" if task.due_is_hard else "outside_work_window"))
             continue
 
-        if task.due_is_hard and not _has_window_outside_fixed_events(valid_starts, duration_slots, busy_by_day):
+        if task.due_is_hard and not _has_window_outside_fixed_events(
+            valid_starts,
+            duration_slots,
+            busy_by_day,
+            slots_per_day=slots_per_day,
+        ):
             unscheduled_tasks.append(_make_unscheduled(task, "hard_due_conflict"))
             continue
 
@@ -302,7 +344,7 @@ def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: d
             cp_model.Domain.FromValues(valid_starts),
             f"task_{task.id}_start",
         )
-        end_var = model.NewIntVar(0, TOTAL_WEEKLY_SLOTS, f"task_{task.id}_end")
+        end_var = model.NewIntVar(0, total_weekly_slots, f"task_{task.id}_end")
         present_var = model.NewBoolVar(f"task_{task.id}_present")
         interval = model.NewOptionalIntervalVar(
             start_var,
@@ -318,8 +360,8 @@ def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: d
 
         on_time_var = None
         if task.due_at is not None:
-            due_slot = _latest_end_slot(task.due_at, week_start)
-            if due_slot >= TOTAL_WEEKLY_SLOTS:
+            due_slot = _latest_end_slot(task.due_at, week_start, workday_window)
+            if due_slot >= total_weekly_slots:
                 on_time_var = present_var
             elif due_slot > 0:
                 on_time_var = model.NewBoolVar(f"task_{task.id}_on_time")
@@ -327,8 +369,8 @@ def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: d
                 model.Add(end_var <= due_slot).OnlyEnforceIf(on_time_var)
                 model.Add(end_var > due_slot).OnlyEnforceIf([present_var, on_time_var.Not()])
 
-        start_reward = model.NewIntVar(0, TOTAL_WEEKLY_SLOTS, f"task_{task.id}_start_reward")
-        model.Add(start_reward == TOTAL_WEEKLY_SLOTS - start_var).OnlyEnforceIf(present_var)
+        start_reward = model.NewIntVar(0, total_weekly_slots, f"task_{task.id}_start_reward")
+        model.Add(start_reward == total_weekly_slots - start_var).OnlyEnforceIf(present_var)
         model.Add(start_reward == 0).OnlyEnforceIf(present_var.Not())
 
         scheduled_candidates.append(
@@ -385,8 +427,8 @@ def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: d
                     user_id=task.user_id,
                     task_id=task.id,
                     event_id=None,
-                    starts_at=_slot_to_datetime(start_slot, week_start),
-                    ends_at=_slot_end_to_datetime(end_slot, week_start),
+                    starts_at=_slot_to_datetime(start_slot, week_start, workday_window),
+                    ends_at=_slot_end_to_datetime(end_slot, week_start, workday_window),
                     location=task.preferred_location,
                     status="planned",
                     lock_level="none",
@@ -431,9 +473,18 @@ def build_schedule(
     """
     task_list = list(tasks)
     event_list = list(events)
-    week_start = (options or {}).get("week_start")
+    resolved_options = options or {}
+    week_start = resolved_options.get("week_start")
     if not isinstance(week_start, date):
         raise ValueError("`week_start` must be provided to build_schedule")
+    workday_window = resolved_options.get("workday_window")
+    if workday_window is None:
+        workday_window = resolve_workday_window(
+            workday_start=resolved_options.get("workday_start"),
+            workday_end=resolved_options.get("workday_end"),
+        )
+    if not isinstance(workday_window, WorkdayWindow):
+        raise ValueError("`workday_window` must be a WorkdayWindow instance when provided")
 
     if not task_list:
         runtime = get_solver_runtime_status()
@@ -448,7 +499,7 @@ def build_schedule(
             ),
         )
 
-    cp_sat_result = _build_schedule_cp_sat(task_list, event_list, week_start)
+    cp_sat_result = _build_schedule_cp_sat(task_list, event_list, week_start, workday_window)
     if cp_sat_result is not None:
         return cp_sat_result
-    return _build_schedule_greedy(task_list, event_list, week_start)
+    return _build_schedule_greedy(task_list, event_list, week_start, workday_window)

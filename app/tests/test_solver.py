@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from app.domain.entities import Event, Task
 from app.solver.cp_sat_model import build_schedule
@@ -132,3 +132,21 @@ def test_solver_marks_impossible_hard_due_tasks() -> None:
 
     assert not result.blocks
     assert result.unscheduled_tasks[0].reason == "hard_due_conflict"
+
+
+def test_solver_honors_custom_workday_window() -> None:
+    result = build_schedule(
+        tasks=[
+            Task(id=1, user_id=1, title="Morning focus", est_duration_min=240, priority=5),
+        ],
+        events=[],
+        options={
+            "week_start": WEEK_START,
+            "workday_start": time(8, 0),
+            "workday_end": time(12, 0),
+        },
+    )
+
+    assert len(result.blocks) == 1
+    assert result.blocks[0].starts_at == datetime(2026, 4, 13, 8, 0)
+    assert result.blocks[0].ends_at == datetime(2026, 4, 13, 12, 0)

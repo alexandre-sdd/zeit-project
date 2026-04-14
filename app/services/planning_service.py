@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, time
 from typing import Any
 
 from sqlalchemy.orm import Session, joinedload
@@ -96,6 +96,8 @@ def generate_schedule_for_user(
     *,
     user_id: int,
     week_start: date,
+    workday_start: time | None = None,
+    workday_end: time | None = None,
 ) -> PlanningRunResult:
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user is None:
@@ -113,6 +115,10 @@ def generate_schedule_for_user(
         [_to_domain_task(task) for task in task_rows],
         [_to_domain_event(event) for event in event_rows],
         week_start=week_start,
+        options={
+            "workday_start": workday_start,
+            "workday_end": workday_end,
+        },
     )
 
     start_dt, end_dt = week_bounds(week_start)

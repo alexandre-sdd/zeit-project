@@ -108,6 +108,40 @@ textarea {
   color: var(--muted);
 }
 
+.window-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.window-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.window-field span {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.window-field input {
+  border: 1px solid rgba(19, 34, 56, 0.18);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+}
+
+.window-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
 .chip-row,
 .action-row,
 .legend-row {
@@ -1017,10 +1051,15 @@ textarea {
   .action-row,
   .chip-row,
   .legend-row,
+  .window-controls,
   .queue-meta,
   .priority-row-label {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .window-controls {
+    grid-template-columns: 1fr;
   }
 
   .button {
