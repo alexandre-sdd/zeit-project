@@ -73,6 +73,67 @@ def test_create_and_list_events_round_trip(client: TestClient) -> None:
     assert list_response.json() == [created_event]
 
 
+def test_delete_task_removes_it_from_task_list(client: TestClient) -> None:
+    created_task = client.post(
+        "/tasks",
+        json={
+            "user_id": 1,
+            "title": "Delete me",
+            "est_duration_min": 60,
+            "priority": 2,
+        },
+    ).json()
+
+    delete_response = client.delete(f"/tasks/{created_task['id']}")
+    assert delete_response.status_code == 204
+
+    list_response = client.get("/tasks", params={"user_id": 1})
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
+def test_delete_event_removes_it_from_event_list(client: TestClient) -> None:
+    created_event = client.post(
+        "/events",
+        json={
+            "user_id": 1,
+            "title": "Delete this event",
+            "starts_at": "2026-04-13T11:00:00",
+            "ends_at": "2026-04-13T12:00:00",
+            "location": "Studio",
+        },
+    ).json()
+
+    delete_response = client.delete(f"/events/{created_event['id']}")
+    assert delete_response.status_code == 204
+
+    list_response = client.get("/events", params={"user_id": 1})
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
+def test_delete_task_also_removes_linked_scheduled_blocks(client: TestClient) -> None:
+    reset_payload = client.post("/demo/reset", json={}).json()
+    schedule_payload = client.post(
+        "/schedule/generate",
+        json={
+            "user_id": reset_payload["user_id"],
+            "week_start": reset_payload["week_start"],
+        },
+    ).json()
+    scheduled_task_id = schedule_payload["blocks"][0]["task_id"]
+
+    delete_response = client.delete(f"/tasks/{scheduled_task_id}")
+    assert delete_response.status_code == 204
+
+    blocks_response = client.get(
+        "/blocks",
+        params={"user_id": reset_payload["user_id"], "week_start": reset_payload["week_start"]},
+    )
+    assert blocks_response.status_code == 200
+    assert all(block["task_id"] != scheduled_task_id for block in blocks_response.json())
+
+
 def test_demo_reset_and_schedule_generation_replace_prior_blocks(client: TestClient) -> None:
     reset_response = client.post("/demo/reset", json={})
     assert reset_response.status_code == 200

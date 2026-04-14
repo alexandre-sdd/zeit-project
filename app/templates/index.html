@@ -82,6 +82,7 @@
                     <th>Duration</th>
                     <th>Priority</th>
                     <th>Due</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -102,6 +103,11 @@
                       {% else %}
                         <span class="subtle">none</span>
                       {% endif %}
+                    </td>
+                    <td class="action-cell">
+                      <button class="button button-danger table-action" type="button" data-task-delete="{{ task.id }}">
+                        Remove
+                      </button>
                     </td>
                   </tr>
                   {% endfor %}
@@ -147,6 +153,7 @@
                     <th>Event</th>
                     <th>Starts</th>
                     <th>Ends</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -158,6 +165,11 @@
                     </td>
                     <td>{{ event.starts_at.strftime('%a %H:%M') }}</td>
                     <td>{{ event.ends_at.strftime('%a %H:%M') }}</td>
+                    <td class="action-cell">
+                      <button class="button button-danger table-action" type="button" data-event-delete="{{ event.id }}">
+                        Remove
+                      </button>
+                    </td>
                   </tr>
                   {% endfor %}
                 </tbody>
@@ -317,15 +329,20 @@
       let currentBlocks = [...initialBlocks];
       let currentUnscheduled = null;
 
-      function requestJson(url, payload) {
-        return fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }).then(async (response) => {
+      function request(url, { method = "POST", payload = undefined } = {}) {
+        const options = { method, headers: {} };
+        if (payload !== undefined) {
+          options.headers["Content-Type"] = "application/json";
+          options.body = JSON.stringify(payload);
+        }
+
+        return fetch(url, options).then(async (response) => {
           if (!response.ok) {
             const errorPayload = await response.json().catch(() => ({}));
             throw new Error(errorPayload.detail || "Request failed");
+          }
+          if (response.status === 204) {
+            return null;
           }
           return response.json();
         });
@@ -571,13 +588,15 @@
       document.getElementById("task-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        await requestJson("/tasks", {
-          user_id: Number(form.get("user_id")),
-          title: form.get("title"),
-          est_duration_min: Number(form.get("est_duration_min")),
-          priority: Number(form.get("priority")),
-          due_at: form.get("due_at") || null,
-          due_is_hard: form.get("due_is_hard") === "on",
+        await request("/tasks", {
+          payload: {
+            user_id: Number(form.get("user_id")),
+            title: form.get("title"),
+            est_duration_min: Number(form.get("est_duration_min")),
+            priority: Number(form.get("priority")),
+            due_at: form.get("due_at") || null,
+            due_is_hard: form.get("due_is_hard") === "on",
+          },
         });
         window.location.reload();
       });
@@ -585,29 +604,55 @@
       document.getElementById("event-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        await requestJson("/events", {
-          user_id: Number(form.get("user_id")),
-          title: form.get("title"),
-          starts_at: form.get("starts_at"),
-          ends_at: form.get("ends_at"),
-          location: form.get("location") || null,
+        await request("/events", {
+          payload: {
+            user_id: Number(form.get("user_id")),
+            title: form.get("title"),
+            starts_at: form.get("starts_at"),
+            ends_at: form.get("ends_at"),
+            location: form.get("location") || null,
+          },
         });
         window.location.reload();
       });
 
       document.getElementById("reset-demo").addEventListener("click", async () => {
-        await requestJson("/demo/reset", {});
+        await request("/demo/reset", { payload: {} });
         window.location.reload();
       });
 
       document.getElementById("generate-schedule").addEventListener("click", async () => {
-        const payload = await requestJson("/schedule/generate", {
-          user_id: demoUserId,
-          week_start: weekStart,
+        const payload = await request("/schedule/generate", {
+          payload: {
+            user_id: demoUserId,
+            week_start: weekStart,
+          },
         });
         currentBlocks = payload.blocks;
         currentUnscheduled = payload.unscheduled_tasks;
         renderDashboard();
+      });
+
+      document.querySelectorAll("[data-task-delete]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const taskId = button.dataset.taskDelete;
+          if (!taskId || !window.confirm("Remove this task from the week?")) {
+            return;
+          }
+          await request(`/tasks/${taskId}`, { method: "DELETE" });
+          window.location.reload();
+        });
+      });
+
+      document.querySelectorAll("[data-event-delete]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const eventId = button.dataset.eventDelete;
+          if (!eventId || !window.confirm("Remove this fixed calendar constraint?")) {
+            return;
+          }
+          await request(`/events/${eventId}`, { method: "DELETE" });
+          window.location.reload();
+        });
       });
 
       renderDashboard();

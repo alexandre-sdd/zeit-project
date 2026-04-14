@@ -158,6 +158,12 @@ textarea {
   border: 1px solid rgba(19, 34, 56, 0.12);
 }
 
+.button-danger {
+  background: rgba(169, 71, 63, 0.1);
+  color: var(--priority-high);
+  border: 1px solid rgba(169, 71, 63, 0.18);
+}
+
 .dashboard-layout {
   display: flex;
   flex-direction: column;
@@ -262,6 +268,16 @@ textarea {
 .data-table strong {
   display: block;
   margin-bottom: 4px;
+}
+
+.action-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.table-action {
+  padding: 8px 12px;
+  font-size: 0.8rem;
 }
 
 .priority-pill {

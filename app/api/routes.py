@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -156,6 +156,19 @@ def create_task(
     return new_task
 
 
+@router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: int, db: DbSession) -> Response:
+    """Delete a task and any scheduled blocks linked to it."""
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Task {task_id} was not found")
+
+    db.query(models.Block).filter(models.Block.task_id == task_id).delete(synchronize_session=False)
+    db.delete(task)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/events", response_model=list[EventRead])
 def get_events(db: DbSession, user_id: int | None = None) -> list[EventRead]:
     """List events, optionally scoped to a specific user."""
@@ -178,6 +191,19 @@ def create_event(payload: EventCreate, db: DbSession) -> EventRead:
     db.commit()
     db.refresh(new_event)
     return new_event
+
+
+@router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_event(event_id: int, db: DbSession) -> Response:
+    """Delete a fixed calendar event and any linked blocks."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Event {event_id} was not found")
+
+    db.query(models.Block).filter(models.Block.event_id == event_id).delete(synchronize_session=False)
+    db.delete(event)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/blocks", response_model=list[BlockRead])

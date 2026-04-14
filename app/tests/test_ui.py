@@ -12,6 +12,7 @@ def test_root_page_renders_seeded_demo(client: TestClient) -> None:
     assert "Generate Schedule" in response.text
     assert "Optimisation calendar" in response.text
     assert "Allocated time by priority" in response.text
+    assert "Remove" in response.text
 
 
 def test_root_page_shows_planned_blocks_after_schedule_run(client: TestClient) -> None:
