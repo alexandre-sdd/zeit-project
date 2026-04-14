@@ -13,7 +13,7 @@ def test_root_page_renders_seeded_demo(client: TestClient) -> None:
     assert "Download ICS" in response.text
     assert "Optimisation calendar" in response.text
     assert "Allocated time by priority" in response.text
-    assert "Runtime status" in response.text
+    assert "Solver status and recent runs" in response.text
     assert "Working Window" in response.text
     assert 'id="workday-start"' in response.text
     assert 'id="workday-end"' in response.text
@@ -38,6 +38,7 @@ def test_root_page_shows_planned_blocks_after_schedule_run(client: TestClient) -
     assert response.status_code == 200
     assert "Task placements" in response.text
     assert "planned blocks are already layered onto the weekly calendar" in response.text
+    assert "Run #" in response.text
 
 
 def test_root_page_does_not_reseed_after_all_tasks_are_deleted(client: TestClient) -> None:

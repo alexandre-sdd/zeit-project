@@ -977,6 +977,56 @@ textarea {
   word-break: break-word;
 }
 
+.run-log-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.run-log-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(19, 34, 56, 0.04);
+}
+
+.run-log-meta {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.run-log-summary {
+  margin: 0 0 14px;
+  color: var(--muted);
+}
+
+.run-log-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.run-log-section {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(19, 34, 56, 0.08);
+}
+
+.run-log-section strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.run-log-lines {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+
 .empty-state {
   margin: 0;
   padding: 18px;
@@ -1025,7 +1075,8 @@ textarea {
   }
 
   .bottom-panels,
-  .log-grid {
+  .log-grid,
+  .run-log-grid {
     grid-template-columns: 1fr;
   }
 }

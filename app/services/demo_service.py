@@ -88,6 +88,7 @@ def ensure_demo_data(db: Session) -> DemoState:
 def reset_demo_data(db: Session) -> DemoState:
     user = get_or_create_demo_user(db)
 
+    db.query(models.ScheduleRun).filter(models.ScheduleRun.user_id == user.id).delete(synchronize_session=False)
     db.query(models.Block).filter(models.Block.user_id == user.id).delete(synchronize_session=False)
     db.query(models.Task).filter(models.Task.user_id == user.id).delete(synchronize_session=False)
     db.query(models.Event).filter(models.Event.user_id == user.id).delete(synchronize_session=False)

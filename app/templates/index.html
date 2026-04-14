@@ -368,13 +368,16 @@
           <section class="panel">
             <div class="panel-header">
               <div>
-                <p class="section-label">Solver Log</p>
-                <h2>Runtime status</h2>
+                <p class="section-label">Run Diagnostics</p>
+                <h2>Solver status and recent runs</h2>
               </div>
-              <span class="panel-hint">Shows whether OR-Tools can run here and what the last solve returned.</span>
+              <span class="panel-hint">Shows the active runtime plus persisted logs for the latest schedule generations.</span>
             </div>
             <div id="solver-log" class="log-window">
               <p class="empty-state compact-empty">Solver log not available yet.</p>
+            </div>
+            <div id="run-log-list" class="run-log-list">
+              <p class="empty-state compact-empty">No persisted schedule runs yet.</p>
             </div>
           </section>
         </div>
@@ -391,6 +394,7 @@
       const initialEvents = {{ initial_events | tojson }};
       const initialBlocks = {{ initial_blocks | tojson }};
       const initialSolverRun = {{ initial_solver_run | tojson }};
+      const initialScheduleRuns = {{ initial_schedule_runs | tojson }};
       const routes = {{ routes | tojson }};
 
       const weekStartDate = new Date(`${weekStart}T00:00:00`);
@@ -408,10 +412,12 @@
       const scheduledHoursEl = document.getElementById("scheduled-hours");
       const unscheduledTotalEl = document.getElementById("unscheduled-total");
       const solverLogEl = document.getElementById("solver-log");
+      const runLogListEl = document.getElementById("run-log-list");
 
       let currentBlocks = [...initialBlocks];
       let currentUnscheduled = null;
       let currentSolverRun = initialSolverRun;
+      let currentScheduleRuns = [...initialScheduleRuns];
       let currentWorkdayStartMinutes = parseTimeValue(initialWorkdayStart);
       let currentWorkdayEndMinutes = parseTimeValue(initialWorkdayEnd);
 
@@ -580,6 +586,15 @@
         if (diffHours < 24) return `${Math.round(diffHours)} h`;
         const diffDays = diffHours / 24;
         return `${Math.round(diffDays)} days`;
+      }
+
+      function formatDateTimeShort(value) {
+        return localDate(value).toLocaleString([], {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
       }
 
       function priorityClass(priority) {
@@ -896,6 +911,93 @@
         `;
       }
 
+      function runLineItems(items, emptyLabel, formatter) {
+        if (!items.length) {
+          return `<li class="compact-empty">${emptyLabel}</li>`;
+        }
+        return items.map((item) => `<li>${formatter(item)}</li>`).join("");
+      }
+
+      function renderRunLogs(scheduleRuns) {
+        if (!scheduleRuns.length) {
+          runLogListEl.innerHTML = '<p class="empty-state compact-empty">No persisted schedule runs yet.</p>';
+          return;
+        }
+
+        runLogListEl.innerHTML = scheduleRuns.map((run) => {
+          const constraints = run.constraints || {};
+          const plannedTasks = run.planned_tasks || [];
+          const unplannedTasks = run.unplanned_tasks || [];
+          const tasksToPlan = run.tasks_to_plan || [];
+          const solver = run.solver || {};
+          const events = constraints.events || [];
+          const workdayStart = constraints.workday_start || "n/a";
+          const workdayEnd = constraints.workday_end || "n/a";
+
+          return `
+            <article class="run-log-card">
+              <div class="log-entry-top">
+                <span class="log-badge ${solver.ortools_available ? "log-badge-ok" : "log-badge-warn"}">${solver.status || "unknown"}</span>
+                <strong>Run #${run.id}</strong>
+                <span class="run-log-meta">${formatDateTimeShort(run.created_at)}</span>
+              </div>
+              <p class="run-log-summary">
+                ${solver.engine || "unknown"} · ${run.scheduled_count} scheduled · ${run.unscheduled_count} unscheduled · workday ${workdayStart}-${workdayEnd}
+              </p>
+              <div class="run-log-grid">
+                <section class="run-log-section">
+                  <strong>Constraints</strong>
+                  <ul class="run-log-lines">
+                    <li>${events.length} locked events in scope</li>
+                    <li>Week ${constraints.week_start || weekStart} to ${constraints.week_end || weekStart}</li>
+                    <li>${tasksToPlan.length} tasks sent to the solver</li>
+                  </ul>
+                </section>
+                <section class="run-log-section">
+                  <strong>Planned</strong>
+                  <ul class="run-log-lines">
+                    ${runLineItems(
+                      plannedTasks,
+                      "Nothing was placed.",
+                      (item) => `${item.title || "Untitled"}: ${formatDateTimeShort(item.starts_at)} to ${formatDateTimeShort(item.ends_at)}`,
+                    )}
+                  </ul>
+                </section>
+                <section class="run-log-section">
+                  <strong>Not Planned</strong>
+                  <ul class="run-log-lines">
+                    ${runLineItems(
+                      unplannedTasks,
+                      "Everything fit.",
+                      (item) => `${item.title || "Untitled"}: ${item.reason || "unknown_reason"}`,
+                    )}
+                  </ul>
+                </section>
+                <section class="run-log-section">
+                  <strong>Tasks To Plan</strong>
+                  <ul class="run-log-lines">
+                    ${runLineItems(
+                      tasksToPlan,
+                      "No tasks were submitted.",
+                      (item) => `${item.title || "Untitled"} · ${item.est_duration_min} min · P${item.priority ?? 0}${item.due_at ? ` · due ${formatDateTimeShort(item.due_at)}` : ""}`,
+                    )}
+                  </ul>
+                </section>
+              </div>
+            </article>
+          `;
+        }).join("");
+      }
+
+      async function refreshScheduleRuns() {
+        const params = new URLSearchParams({
+          user_id: String(demoUserId),
+          week_start: weekStart,
+          limit: "5",
+        });
+        currentScheduleRuns = await request(`${routes.list_schedule_runs}?${params.toString()}`, { method: "GET" });
+      }
+
       function renderDashboard() {
         renderCalendar(currentBlocks);
         renderPriorityBreakdown(currentBlocks);
@@ -904,6 +1006,7 @@
         renderSummary(currentBlocks, currentUnscheduled);
         renderTaskStatuses(currentBlocks, currentUnscheduled);
         renderSolverLog(currentSolverRun);
+        renderRunLogs(currentScheduleRuns);
       }
 
       document.getElementById("task-form").addEventListener("submit", async (event) => {
@@ -958,6 +1061,7 @@
         currentBlocks = payload.blocks;
         currentUnscheduled = payload.unscheduled_tasks;
         currentSolverRun = payload.solver_run;
+        await refreshScheduleRuns();
         renderDashboard();
       });
 

@@ -8,10 +8,12 @@ for the project so other layers can rely on the same contract.
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -29,6 +31,7 @@ class User(Base):
     tasks = relationship("Task", back_populates="user", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="user", cascade="all, delete-orphan")
     blocks = relationship("Block", back_populates="user", cascade="all, delete-orphan")
+    schedule_runs = relationship("ScheduleRun", back_populates="user", cascade="all, delete-orphan")
 
 
 class Task(Base):
@@ -90,3 +93,22 @@ class Block(Base):
             name="uq_blocks_user_timespan",
         ),
     )
+
+
+class ScheduleRun(Base):
+    __tablename__ = "schedule_runs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    week_start = Column(Date, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    scheduled_count = Column(Integer, nullable=False, default=0)
+    unscheduled_count = Column(Integer, nullable=False, default=0)
+    constraints_json = Column(Text, nullable=False)
+    tasks_to_plan_json = Column(Text, nullable=False)
+    planned_tasks_json = Column(Text, nullable=False)
+    unplanned_tasks_json = Column(Text, nullable=False)
+    solver_json = Column(Text, nullable=False)
+    solution_json = Column(Text, nullable=False)
+
+    user = relationship("User", back_populates="schedule_runs")

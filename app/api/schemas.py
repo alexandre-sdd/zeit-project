@@ -4,6 +4,7 @@ Pydantic schemas exposed by the HTTP API.
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -139,6 +140,21 @@ class ScheduleGenerateResponse(BaseModel):
     solver_run: SolverRunRead
     scheduled_count: int
     unscheduled_count: int
+
+
+class ScheduleRunRead(BaseModel):
+    id: int
+    user_id: int
+    week_start: date
+    created_at: datetime
+    scheduled_count: int
+    unscheduled_count: int
+    constraints: dict[str, Any]
+    tasks_to_plan: list[dict[str, Any]]
+    planned_tasks: list[dict[str, Any]]
+    unplanned_tasks: list[dict[str, Any]]
+    solver: dict[str, Any]
+    solution: dict[str, Any]
 
 
 class DemoResetResponse(BaseModel):

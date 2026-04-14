@@ -211,6 +211,43 @@ def test_demo_reset_and_schedule_generation_replace_prior_blocks(client: TestCli
     assert second_payload["scheduled_count"] == first_payload["scheduled_count"]
 
 
+def test_schedule_generation_persists_run_log(client: TestClient) -> None:
+    reset_payload = client.post("/demo/reset", json={}).json()
+
+    generate_response = client.post(
+        "/schedule/generate",
+        json={
+            "user_id": reset_payload["user_id"],
+            "week_start": reset_payload["week_start"],
+            "workday_start": "09:00",
+            "workday_end": "21:00",
+        },
+    )
+
+    assert generate_response.status_code == 200
+    logs_response = client.get(
+        "/schedule/runs",
+        params={
+            "user_id": reset_payload["user_id"],
+            "week_start": reset_payload["week_start"],
+            "limit": 5,
+        },
+    )
+
+    assert logs_response.status_code == 200
+    payload = logs_response.json()
+    assert len(payload) == 1
+    latest_log = payload[0]
+    assert latest_log["constraints"]["workday_start"] == "09:00:00"
+    assert latest_log["constraints"]["workday_end"] == "21:00:00"
+    assert len(latest_log["tasks_to_plan"]) > 0
+    assert latest_log["solver"]["engine"] in {"or_tools_cp_sat", "greedy_fallback"}
+    assert latest_log["solution"]["scheduled_count"] == latest_log["scheduled_count"]
+    assert latest_log["solution"]["unscheduled_count"] == latest_log["unscheduled_count"]
+    assert len(latest_log["planned_tasks"]) == latest_log["scheduled_count"]
+    assert len(latest_log["unplanned_tasks"]) == latest_log["unscheduled_count"]
+
+
 def test_schedule_generation_accepts_custom_workday_window(client: TestClient) -> None:
     task_response = client.post(
         "/tasks",

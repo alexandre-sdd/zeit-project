@@ -15,6 +15,7 @@ from app.api.schemas import (
     EventCreate,
     EventRead,
     HealthResponse,
+    ScheduleRunRead,
     ScheduleGenerateRequest,
     ScheduleGenerateResponse,
     SolverRunRead,
@@ -27,7 +28,13 @@ from app.db.session import get_db
 from app.core.settings import get_settings
 from app.services.demo_service import DEMO_WEEK_START, ensure_demo_data, reset_demo_data
 from app.services.calendar_export import schedule_to_ics
-from app.services.planning_service import generate_schedule_for_user, list_blocks, list_events
+from app.services.planning_service import (
+    generate_schedule_for_user,
+    list_blocks,
+    list_events,
+    list_schedule_runs,
+    load_schedule_run_payload,
+)
 from app.services.schedule_policy import (
     SLOT_MINUTES,
     default_workday_window,
@@ -83,6 +90,24 @@ def _solver_run_to_read(solver_run) -> SolverRunRead:
     )
 
 
+def _schedule_run_to_read(schedule_run: models.ScheduleRun) -> ScheduleRunRead:
+    payload = load_schedule_run_payload(schedule_run)
+    return ScheduleRunRead(
+        id=schedule_run.id,
+        user_id=schedule_run.user_id,
+        week_start=schedule_run.week_start,
+        created_at=schedule_run.created_at,
+        scheduled_count=schedule_run.scheduled_count,
+        unscheduled_count=schedule_run.unscheduled_count,
+        constraints=payload["constraints"],
+        tasks_to_plan=payload["tasks_to_plan"],
+        planned_tasks=payload["planned_tasks"],
+        unplanned_tasks=payload["unplanned_tasks"],
+        solver=payload["solver"],
+        solution=payload["solution"],
+    )
+
+
 def _unscheduled_to_read(title: str, user_id: int, est_duration_min: int, priority: int, reason: str, task_id: int | None = None, due_at=None) -> UnscheduledTaskRead:
     return UnscheduledTaskRead(
         task_id=task_id,
@@ -103,6 +128,10 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
     task_payload = [_task_to_read(task).model_dump(mode="json") for task in state.tasks]
     event_payload = [_event_to_read(event).model_dump(mode="json") for event in state.events]
     block_payload = [_block_to_read(block).model_dump(mode="json") for block in state.blocks]
+    run_log_payload = [
+        _schedule_run_to_read(schedule_run).model_dump(mode="json")
+        for schedule_run in list_schedule_runs(db, user_id=state.user.id, week_start=state.week_start, limit=5)
+    ]
     weekdays = [
         {
             "label": (state.week_start + timedelta(days=day_index)).strftime("%a"),
@@ -151,6 +180,7 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
             "workday_slot_count": workday_window.slots_per_day,
             "slot_minutes": SLOT_MINUTES,
             "initial_solver_run": initial_solver_run.model_dump(mode="json"),
+            "initial_schedule_runs": run_log_payload,
             "assets": {
                 "demo_css": str(request.app.url_path_for("static", path="demo.css")),
                 "favicon": str(request.app.url_path_for("static", path="favicon.svg")),
@@ -160,6 +190,7 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
                 "create_event": str(request.app.url_path_for("create_event")),
                 "reset_demo": str(request.app.url_path_for("reset_demo")),
                 "generate_schedule": str(request.app.url_path_for("generate_schedule")),
+                "list_schedule_runs": str(request.app.url_path_for("list_schedule_runs_route")),
                 "export_calendar_ics": str(request.app.url_path_for("export_calendar_ics")),
                 "delete_task_template": str(request.app.url_path_for("delete_task", task_id=0)),
                 "delete_event_template": str(request.app.url_path_for("delete_event", event_id=0)),
@@ -329,6 +360,19 @@ def generate_schedule(
         scheduled_count=len(scheduled_blocks),
         unscheduled_count=len(unscheduled),
     )
+
+
+@router.get("/schedule/runs", response_model=list[ScheduleRunRead], name="list_schedule_runs_route")
+def get_schedule_runs(
+    db: DbSession,
+    user_id: int,
+    week_start: date | None = None,
+    limit: int = 10,
+) -> list[ScheduleRunRead]:
+    """List recent schedule generation logs for a user and optional week."""
+    safe_limit = min(max(limit, 1), 20)
+    schedule_runs = list_schedule_runs(db, user_id=user_id, week_start=week_start, limit=safe_limit)
+    return [_schedule_run_to_read(schedule_run) for schedule_run in schedule_runs]
 
 
 @router.post("/demo/reset", response_model=DemoResetResponse)
