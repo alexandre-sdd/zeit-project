@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .api.routes import router as api_router
 from .core.logging_config import configure_logging
@@ -24,6 +26,12 @@ app_dir = Path(__file__).resolve().parent
 
 # Create the FastAPI app instance with configured metadata.
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+# Add trusted host middleware
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+
+# Add proxy headers middleware to handle forwarded headers from Railway
+app.add_middleware(ProxyHeadersMiddleware)
 
 # Add CORS middleware
 app.add_middleware(
