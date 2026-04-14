@@ -455,6 +455,19 @@
         return "p1";
       }
 
+      function calendarDensityClass(slotSpan) {
+        if (slotSpan <= 1.25) return "calendar-item-tiny";
+        if (slotSpan <= 2) return "calendar-item-compact";
+        return "";
+      }
+
+      function calendarBadgeLabel(item, densityClass) {
+        if (item.kind === "event") {
+          return densityClass === "calendar-item-tiny" ? "L" : densityClass === "calendar-item-compact" ? "Lock" : "Locked";
+        }
+        return `P${item.priority || 0}`;
+      }
+
       function taskBlockView(block) {
         const task = tasksById.get(block.task_id) || {};
         const priority = block.task_priority ?? task.priority ?? 0;
@@ -510,10 +523,10 @@
             const startSlot = Math.max(0, slotOffset(item.startsAt));
             const slotSpan = Math.max(1, item.durationMin / slotMinutes);
             const kindClass = item.kind === "event" ? "calendar-item-event" : `calendar-item-task ${priorityClass(item.priority || 0)}`;
-            const compactClass = slotSpan <= 2 ? "calendar-item-compact" : "";
+            const densityClass = calendarDensityClass(slotSpan);
             const badge = item.kind === "event"
-              ? '<span class="mini-pill mini-pill-fixed">Locked</span>'
-              : `<span class="mini-pill mini-pill-${priorityClass(item.priority || 0)}">P${item.priority || 0}</span>`;
+              ? `<span class="mini-pill mini-pill-fixed">${calendarBadgeLabel(item, densityClass)}</span>`
+              : `<span class="mini-pill mini-pill-${priorityClass(item.priority || 0)}">${calendarBadgeLabel(item, densityClass)}</span>`;
             const meta = item.kind === "event"
               ? `${item.subtitle}${item.location ? ` · ${item.location}` : ""}`
               : `${item.subtitle}${item.dueAt ? ` · due ${formatDateTime(item.dueAt, { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : ""}`;
@@ -523,7 +536,7 @@
 
             return `
               <article
-                class="calendar-item ${kindClass} ${compactClass}"
+                class="calendar-item ${kindClass} ${densityClass}"
                 style="--day-index: ${dayIndex}; --start-slot: ${startSlot}; --slot-span: ${slotSpan};"
                 title="${tooltip}"
               >

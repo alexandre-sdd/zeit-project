@@ -573,12 +573,17 @@ textarea {
   margin: 8px 0 6px;
   font-size: 1rem;
   line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .calendar-item p {
   margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .calendar-item-top {
@@ -586,6 +591,11 @@ textarea {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+}
+
+.calendar-item-time {
+  flex: 0 0 auto;
+  text-align: right;
 }
 
 .calendar-item-task.p5 {
@@ -619,7 +629,67 @@ textarea {
   color: var(--ink);
 }
 
+.calendar-item-compact {
+  padding: 8px 10px;
+}
+
+.calendar-item-compact .calendar-item-top {
+  gap: 6px;
+}
+
+.calendar-item-compact .mini-pill {
+  padding: 3px 7px;
+  font-size: 0.62rem;
+}
+
+.calendar-item-compact .calendar-item-time {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+}
+
+.calendar-item-compact h3 {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
 .calendar-item-compact p {
+  display: none;
+}
+
+.calendar-item-tiny {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+}
+
+.calendar-item-tiny .calendar-item-top {
+  flex: 0 0 auto;
+}
+
+.calendar-item-tiny .mini-pill {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+}
+
+.calendar-item-tiny .calendar-item-time {
+  display: none;
+}
+
+.calendar-item-tiny h3 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.calendar-item-tiny p {
   display: none;
 }
 
