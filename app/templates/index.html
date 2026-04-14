@@ -38,8 +38,8 @@
         </div>
       </section>
 
-      <section class="content-grid">
-        <div class="stack-column">
+      <section class="dashboard-layout">
+        <div class="top-panels">
           <section class="panel">
             <div class="panel-header">
               <div>
@@ -109,7 +109,7 @@
               </table>
             </div>
           </section>
-
+        
           <section class="panel">
             <div class="panel-header">
               <div>
@@ -166,101 +166,101 @@
           </section>
         </div>
 
-        <div class="stack-column">
-          <section class="panel schedule-panel">
-            <div class="panel-header">
-              <div>
-                <p class="section-label">Generated Plan</p>
-                <h2>Optimisation calendar</h2>
+        <section class="panel schedule-panel full-width-panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Generated Plan</p>
+              <h2>Optimisation calendar</h2>
+            </div>
+            <p id="schedule-summary" class="panel-hint">
+              {% if blocks %}
+                {{ block_count }} planned blocks are already layered onto the weekly calendar.
+              {% else %}
+                Locked events are visible now. Run the optimiser to place task blocks into the remaining capacity.
+              {% endif %}
+            </p>
+          </div>
+
+          <div class="schedule-stats">
+            <article class="schedule-stat">
+              <span>Scheduled focus</span>
+              <strong id="scheduled-hours">0h</strong>
+            </article>
+            <article class="schedule-stat">
+              <span>Locked events</span>
+              <strong>{{ event_count }}</strong>
+            </article>
+            <article class="schedule-stat">
+              <span>Unscheduled tasks</span>
+              <strong id="unscheduled-total">0</strong>
+            </article>
+          </div>
+
+          <div class="legend-row">
+            <span class="legend-item"><span class="legend-swatch legend-fixed"></span>Locked event</span>
+            <span class="legend-item"><span class="legend-swatch legend-p5"></span>P5 task</span>
+            <span class="legend-item"><span class="legend-swatch legend-p3"></span>P3-P4 task</span>
+            <span class="legend-item"><span class="legend-swatch legend-p1"></span>P1-P2 task</span>
+          </div>
+
+          <div class="calendar-layout">
+            <div class="calendar-frame">
+              <div class="calendar-header">
+                <div class="calendar-corner">Time</div>
+                {% for weekday in weekdays %}
+                <div class="calendar-day-heading">
+                  <span>{{ weekday.label }}</span>
+                  <strong>{{ weekday.date_label }}</strong>
+                </div>
+                {% endfor %}
               </div>
-              <p id="schedule-summary" class="panel-hint">
-                {% if blocks %}
-                  {{ block_count }} planned blocks are already layered onto the weekly calendar.
-                {% else %}
-                  Locked events are visible now. Run the optimiser to place task blocks into the remaining capacity.
-                {% endif %}
-              </p>
-            </div>
 
-            <div class="schedule-stats">
-              <article class="schedule-stat">
-                <span>Scheduled focus</span>
-                <strong id="scheduled-hours">0h</strong>
-              </article>
-              <article class="schedule-stat">
-                <span>Locked events</span>
-                <strong>{{ event_count }}</strong>
-              </article>
-              <article class="schedule-stat">
-                <span>Unscheduled tasks</span>
-                <strong id="unscheduled-total">0</strong>
-              </article>
-            </div>
-
-            <div class="legend-row">
-              <span class="legend-item"><span class="legend-swatch legend-fixed"></span>Locked event</span>
-              <span class="legend-item"><span class="legend-swatch legend-p5"></span>P5 task</span>
-              <span class="legend-item"><span class="legend-swatch legend-p3"></span>P3-P4 task</span>
-              <span class="legend-item"><span class="legend-swatch legend-p1"></span>P1-P2 task</span>
-            </div>
-
-            <div class="calendar-layout">
-              <div class="calendar-frame">
-                <div class="calendar-header">
-                  <div class="calendar-corner">Time</div>
-                  {% for weekday in weekdays %}
-                  <div class="calendar-day-heading">
-                    <span>{{ weekday.label }}</span>
-                    <strong>{{ weekday.date_label }}</strong>
-                  </div>
+              <div class="calendar-body">
+                <div class="time-rail">
+                  {% for label in time_labels %}
+                  <span>{{ label }}</span>
                   {% endfor %}
                 </div>
-
-                <div class="calendar-body">
-                  <div class="time-rail">
-                    {% for label in time_labels %}
-                    <span>{{ label }}</span>
+                <div
+                  id="calendar-grid"
+                  class="calendar-grid"
+                  style="--day-count: {{ weekdays | length }}; --slot-count: {{ ((workday_end_hour - workday_start_hour) * 60 // slot_minutes) }};"
+                >
+                  <div class="calendar-backdrop">
+                    {% for weekday in weekdays %}
+                    <div class="calendar-day-lane"></div>
                     {% endfor %}
                   </div>
-                  <div
-                    id="calendar-grid"
-                    class="calendar-grid"
-                    style="--day-count: {{ weekdays | length }}; --slot-count: {{ ((workday_end_hour - workday_start_hour) * 60 // slot_minutes) }};"
-                  >
-                    <div class="calendar-backdrop">
-                      {% for weekday in weekdays %}
-                      <div class="calendar-day-lane"></div>
-                      {% endfor %}
-                    </div>
-                    <div id="calendar-card-layer" class="calendar-card-layer"></div>
-                  </div>
+                  <div id="calendar-card-layer" class="calendar-card-layer"></div>
                 </div>
               </div>
-
-              <aside class="calendar-sidebar">
-                <section class="summary-card">
-                  <div class="summary-card-header">
-                    <p class="section-label">Priority Mix</p>
-                    <h3>Allocated time by priority</h3>
-                  </div>
-                  <div id="priority-breakdown" class="priority-breakdown">
-                    <p class="empty-state compact-empty">Generate a schedule to see how the optimiser spends time.</p>
-                  </div>
-                </section>
-
-                <section class="summary-card">
-                  <div class="summary-card-header">
-                    <p class="section-label">Scheduled Queue</p>
-                    <h3>Task placements</h3>
-                  </div>
-                  <div id="scheduled-queue" class="scheduled-queue">
-                    <p class="empty-state compact-empty">No task blocks are scheduled yet.</p>
-                  </div>
-                </section>
-              </aside>
             </div>
-          </section>
 
+            <aside class="calendar-sidebar">
+              <section class="summary-card">
+                <div class="summary-card-header">
+                  <p class="section-label">Priority Mix</p>
+                  <h3>Allocated time by priority</h3>
+                </div>
+                <div id="priority-breakdown" class="priority-breakdown">
+                  <p class="empty-state compact-empty">Generate a schedule to see how the optimiser spends time.</p>
+                </div>
+              </section>
+
+              <section class="summary-card">
+                <div class="summary-card-header">
+                  <p class="section-label">Scheduled Queue</p>
+                  <h3>Task placements</h3>
+                </div>
+                <div id="scheduled-queue" class="scheduled-queue">
+                  <p class="empty-state compact-empty">No task blocks are scheduled yet.</p>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </section>
+
+        <div class="bottom-panels">
           <section class="panel">
             <div class="panel-header">
               <div>
