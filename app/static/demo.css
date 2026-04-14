@@ -224,7 +224,7 @@ textarea {
 
 .bottom-panels {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
   align-items: start;
 }
@@ -784,10 +784,19 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  min-height: 0;
+  height: 100%;
 }
 
 .summary-card {
   padding: 20px;
+}
+
+.queue-card {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .summary-card-header {
@@ -799,6 +808,34 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.scheduled-queue {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.scheduled-queue::-webkit-scrollbar {
+  width: 10px;
+}
+
+.scheduled-queue::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+.scheduled-queue::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid rgba(247, 241, 227, 0.9);
+}
+
+.scheduled-queue::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 
 .priority-row {
@@ -903,6 +940,51 @@ textarea {
 .visitor-note p {
   margin: 0;
   color: var(--muted);
+}
+
+.diagnostics-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.diagnostics-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.diagnostics-summary::-webkit-details-marker {
+  display: none;
+}
+
+.diagnostics-summary::after {
+  content: "▾";
+  flex: 0 0 auto;
+  font-size: 1.2rem;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.diagnostics-panel[open] .diagnostics-summary::after {
+  transform: rotate(180deg);
+}
+
+.diagnostics-summary h2 {
+  margin: 0;
+  font-size: 1.7rem;
+}
+
+.diagnostics-summary .panel-hint {
+  margin: 0;
+  max-width: 32ch;
+}
+
+.diagnostics-body {
+  padding: 0 24px 24px;
 }
 
 .log-window {
@@ -1055,7 +1137,7 @@ textarea {
   }
 
   .bottom-panels {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 }
 

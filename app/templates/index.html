@@ -295,7 +295,7 @@
                 </div>
               </section>
 
-              <section class="summary-card">
+              <section class="summary-card queue-card">
                 <div class="summary-card-header">
                   <p class="section-label">Scheduled Queue</p>
                   <h3>Task placements</h3>
@@ -364,23 +364,25 @@
               </p>
             </div>
           </section>
+        </div>
 
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="section-label">Run Diagnostics</p>
-                <h2>Solver status and recent runs</h2>
-              </div>
-              <span class="panel-hint">Shows the active runtime plus persisted logs for the latest schedule generations.</span>
+        <details class="panel diagnostics-panel">
+          <summary class="diagnostics-summary">
+            <div>
+              <p class="section-label">Run Diagnostics</p>
+              <h2>Solver status and recent runs</h2>
             </div>
+            <span class="panel-hint">Expand to inspect solver status and persisted run logs.</span>
+          </summary>
+          <div class="diagnostics-body">
             <div id="solver-log" class="log-window">
               <p class="empty-state compact-empty">Solver log not available yet.</p>
             </div>
             <div id="run-log-list" class="run-log-list">
               <p class="empty-state compact-empty">No persisted schedule runs yet.</p>
             </div>
-          </section>
-        </div>
+          </div>
+        </details>
       </section>
     </main>
 
