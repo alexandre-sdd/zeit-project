@@ -14,7 +14,7 @@ from math import ceil, floor
 import sys
 from typing import Any
 
-from app.domain.entities import Block, Event, ScheduleResult, Task, UnscheduledTask
+from app.domain.entities import Block, Event, ScheduleResult, SolverRun, Task, UnscheduledTask
 from app.services.schedule_policy import (
     SLOT_MINUTES,
     SLOTS_PER_DAY,
@@ -153,6 +153,29 @@ def _make_unscheduled(task: Task, reason: str) -> UnscheduledTask:
     )
 
 
+def get_solver_runtime_status() -> SolverRun:
+    """Describe whether the OR-Tools CP-SAT path can run in this environment."""
+    cp_model = _load_cp_model()
+    if cp_model is not None:
+        return SolverRun(
+            engine="or_tools_cp_sat",
+            ortools_available=True,
+            status="READY",
+            message="OR-Tools CP-SAT is available in this runtime.",
+        )
+
+    if sys.version_info >= (3, 13):
+        message = "OR-Tools CP-SAT is unavailable in this runtime, so the app will use the greedy fallback."
+    else:
+        message = "OR-Tools CP-SAT could not be imported, so the app will use the greedy fallback."
+    return SolverRun(
+        engine="greedy_fallback",
+        ortools_available=False,
+        status="FALLBACK_READY",
+        message=message,
+    )
+
+
 def _available_starts_for_soft_due(task: Task, duration_slots: int, starts: list[int], week_start: date) -> list[int]:
     if task.due_at is None:
         return starts
@@ -220,7 +243,16 @@ def _build_schedule_greedy(tasks: list[Task], events: list[Event], week_start: d
 
     blocks.sort(key=lambda block: block.starts_at)
     unscheduled.sort(key=lambda item: (-item.priority, item.title))
-    return ScheduleResult(blocks=blocks, unscheduled_tasks=unscheduled)
+    return ScheduleResult(
+        blocks=blocks,
+        unscheduled_tasks=unscheduled,
+        solver_run=SolverRun(
+            engine="greedy_fallback",
+            ortools_available=False,
+            status="FALLBACK_GREEDY",
+            message=f"Greedy fallback scheduled {len(blocks)} blocks and left {len(unscheduled)} tasks unscheduled.",
+        ),
+    )
 
 
 def _load_cp_model():
@@ -328,8 +360,18 @@ def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: d
     solver.parameters.max_time_in_seconds = 5
     solver.parameters.num_search_workers = 8
     status = solver.Solve(model)
+    status_name = solver.StatusName(status)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return ScheduleResult(blocks=[], unscheduled_tasks=unscheduled_tasks)
+        return ScheduleResult(
+            blocks=[],
+            unscheduled_tasks=unscheduled_tasks,
+            solver_run=SolverRun(
+                engine="or_tools_cp_sat",
+                ortools_available=True,
+                status=status_name,
+                message=f"OR-Tools CP-SAT completed with status {status_name} and did not produce a usable schedule.",
+            ),
+        )
 
     blocks: list[Block] = []
     for candidate in scheduled_candidates:
@@ -357,7 +399,17 @@ def _build_schedule_cp_sat(tasks: list[Task], events: list[Event], week_start: d
 
     blocks.sort(key=lambda block: block.starts_at)
     unscheduled_tasks.sort(key=lambda item: (-item.priority, item.title))
-    return ScheduleResult(blocks=blocks, unscheduled_tasks=unscheduled_tasks)
+    return ScheduleResult(
+        blocks=blocks,
+        unscheduled_tasks=unscheduled_tasks,
+        solver_run=SolverRun(
+            engine="or_tools_cp_sat",
+            ortools_available=True,
+            status=status_name,
+            message=f"OR-Tools CP-SAT returned {status_name}, scheduled {len(blocks)} blocks, and left {len(unscheduled_tasks)} tasks unscheduled.",
+            objective_value=solver.ObjectiveValue(),
+        ),
+    )
 
 
 def build_schedule(
@@ -384,7 +436,17 @@ def build_schedule(
         raise ValueError("`week_start` must be provided to build_schedule")
 
     if not task_list:
-        return ScheduleResult(blocks=[], unscheduled_tasks=[])
+        runtime = get_solver_runtime_status()
+        return ScheduleResult(
+            blocks=[],
+            unscheduled_tasks=[],
+            solver_run=SolverRun(
+                engine=runtime.engine,
+                ortools_available=runtime.ortools_available,
+                status="NO_TASKS",
+                message="No tasks were available to schedule for this run.",
+            ),
+        )
 
     cp_sat_result = _build_schedule_cp_sat(task_list, event_list, week_start)
     if cp_sat_result is not None:

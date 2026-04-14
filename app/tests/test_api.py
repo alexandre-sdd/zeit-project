@@ -134,6 +134,28 @@ def test_delete_task_also_removes_linked_scheduled_blocks(client: TestClient) ->
     assert all(block["task_id"] != scheduled_task_id for block in blocks_response.json())
 
 
+def test_calendar_export_returns_ics_with_events_and_blocks(client: TestClient) -> None:
+    reset_payload = client.post("/demo/reset", json={}).json()
+    schedule_payload = client.post(
+        "/schedule/generate",
+        json={
+            "user_id": reset_payload["user_id"],
+            "week_start": reset_payload["week_start"],
+        },
+    ).json()
+
+    export_response = client.get(
+        "/calendar/export.ics",
+        params={"user_id": reset_payload["user_id"], "week_start": reset_payload["week_start"]},
+    )
+
+    assert export_response.status_code == 200
+    assert "text/calendar" in export_response.headers["content-type"]
+    assert "attachment;" in export_response.headers["content-disposition"]
+    assert "Weekly Standup" in export_response.text
+    assert schedule_payload["blocks"][0]["task_title"] in export_response.text
+
+
 def test_demo_reset_and_schedule_generation_replace_prior_blocks(client: TestClient) -> None:
     reset_response = client.post("/demo/reset", json={})
     assert reset_response.status_code == 200
@@ -150,6 +172,9 @@ def test_demo_reset_and_schedule_generation_replace_prior_blocks(client: TestCli
     first_payload = first_run.json()
     assert first_payload["scheduled_count"] > 0
     assert first_payload["unscheduled_count"] > 0
+    assert first_payload["solver_run"]["engine"] in {"or_tools_cp_sat", "greedy_fallback"}
+    assert first_payload["solver_run"]["status"]
+    assert first_payload["solver_run"]["message"]
     assert {item["reason"] for item in first_payload["unscheduled_tasks"]} >= {
         "hard_due_conflict",
         "outside_work_window",

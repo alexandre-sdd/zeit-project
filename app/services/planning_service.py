@@ -14,7 +14,7 @@ from typing import Any
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import models
-from app.domain.entities import Block, Event, ScheduleResult, Task, UnscheduledTask
+from app.domain.entities import Block, Event, ScheduleResult, SolverRun, Task, UnscheduledTask
 from app.services.schedule_policy import week_bounds, week_end_date
 from app.solver.cp_sat_model import build_schedule
 
@@ -25,6 +25,7 @@ class PlanningRunResult:
     week_end: date
     blocks: list[models.Block]
     unscheduled_tasks: list[UnscheduledTask]
+    solver_run: SolverRun
 
 
 def _to_domain_task(task: models.Task) -> Task:
@@ -145,4 +146,5 @@ def generate_schedule_for_user(
         week_end=week_end_date(week_start),
         blocks=persisted_blocks,
         unscheduled_tasks=schedule_result.unscheduled_tasks,
+        solver_run=schedule_result.solver_run,
     )

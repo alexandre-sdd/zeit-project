@@ -71,6 +71,16 @@ class UnscheduledTask:
 
 
 @dataclass(slots=True)
+class SolverRun:
+    engine: str
+    ortools_available: bool
+    status: str
+    message: str
+    objective_value: float | None = None
+
+
+@dataclass(slots=True)
 class ScheduleResult:
     blocks: list[Block]
     unscheduled_tasks: list[UnscheduledTask]
+    solver_run: SolverRun

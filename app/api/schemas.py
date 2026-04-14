@@ -99,6 +99,14 @@ class UnscheduledTaskRead(BaseModel):
     reason: str
 
 
+class SolverRunRead(BaseModel):
+    engine: str
+    ortools_available: bool
+    status: str
+    message: str
+    objective_value: float | None = None
+
+
 class ScheduleGenerateRequest(BaseModel):
     user_id: int = Field(..., gt=0)
     week_start: date
@@ -109,6 +117,7 @@ class ScheduleGenerateResponse(BaseModel):
     week_end: date
     blocks: list[BlockRead]
     unscheduled_tasks: list[UnscheduledTaskRead]
+    solver_run: SolverRunRead
     scheduled_count: int
     unscheduled_count: int
 

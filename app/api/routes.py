@@ -17,6 +17,7 @@ from app.api.schemas import (
     HealthResponse,
     ScheduleGenerateRequest,
     ScheduleGenerateResponse,
+    SolverRunRead,
     TaskCreate,
     TaskRead,
     UnscheduledTaskRead,
@@ -25,8 +26,10 @@ from app.db import models
 from app.db.session import get_db
 from app.core.settings import get_settings
 from app.services.demo_service import DEMO_WEEK_START, ensure_demo_data, reset_demo_data
+from app.services.calendar_export import schedule_to_ics
 from app.services.planning_service import generate_schedule_for_user, list_blocks, list_events
-from app.services.schedule_policy import SLOT_MINUTES, WORKDAY_END_HOUR, WORKDAY_START_HOUR, week_end_date
+from app.services.schedule_policy import SLOT_MINUTES, WORKDAY_END_HOUR, WORKDAY_START_HOUR, week_bounds, week_end_date
+from app.solver.cp_sat_model import get_solver_runtime_status
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
@@ -63,6 +66,16 @@ def _block_to_read(block: models.Block) -> BlockRead:
     )
 
 
+def _solver_run_to_read(solver_run) -> SolverRunRead:
+    return SolverRunRead(
+        engine=solver_run.engine,
+        ortools_available=solver_run.ortools_available,
+        status=solver_run.status,
+        message=solver_run.message,
+        objective_value=solver_run.objective_value,
+    )
+
+
 def _unscheduled_to_read(title: str, user_id: int, est_duration_min: int, priority: int, reason: str, task_id: int | None = None, due_at=None) -> UnscheduledTaskRead:
     return UnscheduledTaskRead(
         task_id=task_id,
@@ -90,6 +103,21 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
         for day_index in range(5)
     ]
     time_labels = [f"{hour:02d}:00" for hour in range(WORKDAY_START_HOUR, WORKDAY_END_HOUR + 1)]
+    runtime = get_solver_runtime_status()
+    initial_solver_run = SolverRunRead(
+        engine=runtime.engine,
+        ortools_available=runtime.ortools_available,
+        status="IDLE",
+        message=(
+            f"{runtime.message} "
+            + (
+                f"The page currently shows {len(state.blocks)} persisted planned blocks."
+                if state.blocks
+                else "Run Generate Schedule to record a fresh optimisation result."
+            )
+        ),
+        objective_value=None,
+    )
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -113,6 +141,7 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
             "workday_start_hour": WORKDAY_START_HOUR,
             "workday_end_hour": WORKDAY_END_HOUR,
             "slot_minutes": SLOT_MINUTES,
+            "initial_solver_run": initial_solver_run.model_dump(mode="json"),
         },
     )
 
@@ -216,6 +245,29 @@ def get_blocks(
     return [_block_to_read(block) for block in list_blocks(db, user_id=user_id, week_start=week_start)]
 
 
+@router.get("/calendar/export.ics")
+def export_calendar_ics(
+    db: DbSession,
+    user_id: int,
+    week_start: date,
+) -> Response:
+    """Download the visible planning week as an ICS calendar file."""
+    blocks = list_blocks(db, user_id=user_id, week_start=week_start)
+    start_dt, end_dt = week_bounds(week_start)
+    events = [
+        event
+        for event in list_events(db, user_id=user_id)
+        if event.starts_at < end_dt and event.ends_at > start_dt
+    ]
+    ics_payload = schedule_to_ics(blocks=blocks, events=events)
+    filename = f"zeit_calendar_{week_start.isoformat()}.ics"
+    return Response(
+        content=ics_payload,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/schedule/generate", response_model=ScheduleGenerateResponse)
 def generate_schedule(
     payload: ScheduleGenerateRequest,
@@ -249,6 +301,7 @@ def generate_schedule(
         week_end=result.week_end,
         blocks=scheduled_blocks,
         unscheduled_tasks=unscheduled,
+        solver_run=_solver_run_to_read(result.solver_run),
         scheduled_count=len(scheduled_blocks),
         unscheduled_count=len(unscheduled),
     )

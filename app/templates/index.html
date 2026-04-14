@@ -34,6 +34,13 @@
           <div class="action-row">
             <button id="reset-demo" class="button button-secondary" type="button">Reset Seed Data</button>
             <button id="generate-schedule" class="button button-primary" type="button">Generate Schedule</button>
+            <a
+              class="button button-secondary"
+              href="/calendar/export.ics?user_id={{ demo_user.id }}&week_start={{ week_start.isoformat() }}"
+              download
+            >
+              Download ICS
+            </a>
           </div>
         </div>
       </section>
@@ -57,7 +64,7 @@
               </label>
               <label>
                 <span>Duration (minutes)</span>
-                <input name="est_duration_min" type="number" required min="1" step="15" value="60" />
+                <input name="est_duration_min" type="number" required min="1" step="1" value="60" />
               </label>
               <label>
                 <span>Priority</span>
@@ -82,12 +89,13 @@
                     <th>Duration</th>
                     <th>Priority</th>
                     <th>Due</th>
+                    <th>Status</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for task in tasks %}
-                  <tr>
+                  <tr data-task-row="{{ task.id }}">
                     <td>
                       <strong>{{ task.title }}</strong>
                       {% if task.category %}
@@ -103,6 +111,9 @@
                       {% else %}
                         <span class="subtle">none</span>
                       {% endif %}
+                    </td>
+                    <td>
+                      <span class="task-status-pill" data-task-status="{{ task.id }}">Not evaluated</span>
                     </td>
                     <td class="action-cell">
                       <button class="button button-danger table-action" type="button" data-task-delete="{{ task.id }}">
@@ -299,6 +310,26 @@
               <li>Point out the locked calendar events, task priorities, and hard deadlines.</li>
               <li>Generate the schedule and show which tasks fit, which do not, and why.</li>
             </ol>
+            <div class="recruiter-note">
+              <strong>Known limits</strong>
+              <p>
+                This version still cannot break tasks into smaller blocks and cannot relax the
+                Monday-Friday 09:00-17:00 planning window.
+              </p>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Solver Log</p>
+                <h2>Runtime status</h2>
+              </div>
+              <span class="panel-hint">Shows whether OR-Tools can run here and what the last solve returned.</span>
+            </div>
+            <div id="solver-log" class="log-window">
+              <p class="empty-state compact-empty">Solver log not available yet.</p>
+            </div>
           </section>
         </div>
       </section>
@@ -313,6 +344,7 @@
       const initialTasks = {{ initial_tasks | tojson }};
       const initialEvents = {{ initial_events | tojson }};
       const initialBlocks = {{ initial_blocks | tojson }};
+      const initialSolverRun = {{ initial_solver_run | tojson }};
 
       const totalSlotsPerDay = ((workdayEndHour - workdayStartHour) * 60) / slotMinutes;
       const weekStartDate = new Date(`${weekStart}T00:00:00`);
@@ -325,9 +357,11 @@
       const scheduleSummaryEl = document.getElementById("schedule-summary");
       const scheduledHoursEl = document.getElementById("scheduled-hours");
       const unscheduledTotalEl = document.getElementById("unscheduled-total");
+      const solverLogEl = document.getElementById("solver-log");
 
       let currentBlocks = [...initialBlocks];
       let currentUnscheduled = null;
+      let currentSolverRun = initialSolverRun;
 
       function request(url, { method = "POST", payload = undefined } = {}) {
         const options = { method, headers: {} };
@@ -577,12 +611,81 @@
         scheduleSummaryEl.textContent = `${blocks.length} task blocks scheduled across ${formatHours(scheduledMinutes)} of focus time, with ${unscheduledTasks.length} tasks left out.`;
       }
 
+      function renderTaskStatuses(blocks, unscheduledTasks) {
+        const scheduledTaskIds = new Set(blocks.map((block) => block.task_id).filter(Boolean));
+        const unscheduledTaskIds = new Set((unscheduledTasks || []).map((task) => task.task_id).filter(Boolean));
+
+        document.querySelectorAll("[data-task-status]").forEach((element) => {
+          const taskId = Number(element.dataset.taskStatus);
+          if (scheduledTaskIds.has(taskId)) {
+            element.className = "task-status-pill task-status-scheduled";
+            element.textContent = "On calendar";
+            return;
+          }
+
+          if (unscheduledTasks !== null && unscheduledTaskIds.has(taskId)) {
+            element.className = "task-status-pill task-status-unscheduled";
+            element.textContent = "Unscheduled";
+            return;
+          }
+
+          if (unscheduledTasks === null) {
+            element.className = "task-status-pill task-status-unknown";
+            element.textContent = "Not on calendar";
+            return;
+          }
+
+          element.className = "task-status-pill task-status-unknown";
+          element.textContent = "Not evaluated";
+        });
+      }
+
+      function renderSolverLog(solverRun) {
+        if (!solverRun) {
+          solverLogEl.innerHTML = '<p class="empty-state compact-empty">Solver log not available yet.</p>';
+          return;
+        }
+
+        const engineLabel = solverRun.engine === "or_tools_cp_sat" ? "OR-Tools CP-SAT" : "Greedy fallback";
+        const availabilityLabel = solverRun.ortools_available ? "available" : "unavailable";
+        const toneClass = solverRun.ortools_available ? "log-badge-ok" : "log-badge-warn";
+        const objectiveLine = solverRun.objective_value === null || solverRun.objective_value === undefined
+          ? "n/a"
+          : Number(solverRun.objective_value).toFixed(0);
+
+        solverLogEl.innerHTML = `
+          <div class="log-entry">
+            <div class="log-entry-top">
+              <span class="log-badge ${toneClass}">${solverRun.status}</span>
+              <strong>${engineLabel}</strong>
+            </div>
+            <p>${solverRun.message}</p>
+          </div>
+          <dl class="log-grid">
+            <div>
+              <dt>OR-Tools</dt>
+              <dd>${availabilityLabel}</dd>
+            </div>
+            <div>
+              <dt>Engine</dt>
+              <dd>${solverRun.engine}</dd>
+            </div>
+            <div>
+              <dt>Objective</dt>
+              <dd>${objectiveLine}</dd>
+            </div>
+          </dl>
+        `;
+      }
+
       function renderDashboard() {
         renderCalendar(currentBlocks);
         renderPriorityBreakdown(currentBlocks);
         renderScheduledQueue(currentBlocks);
         renderUnscheduled(currentUnscheduled);
         renderSummary(currentBlocks, currentUnscheduled);
+        renderTaskStatuses(currentBlocks, currentUnscheduled);
+        renderSolverLog(currentSolverRun);
       }
 
       document.getElementById("task-form").addEventListener("submit", async (event) => {
@@ -630,6 +733,7 @@
         });
         currentBlocks = payload.blocks;
         currentUnscheduled = payload.unscheduled_tasks;
+        currentSolverRun = payload.solver_run;
         renderDashboard();
       });
 
