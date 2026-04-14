@@ -184,6 +184,10 @@ textarea {
   align-items: stretch;
 }
 
+.top-panels > .panel {
+  height: clamp(720px, 84vh, 960px);
+}
+
 .bottom-panels {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -205,6 +209,11 @@ textarea {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+}
+
+.top-panels .panel:not(.tasks-panel) {
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-header,
@@ -589,13 +598,24 @@ textarea {
 .calendar-item-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 
 .calendar-item-time {
   flex: 0 0 auto;
   text-align: right;
+}
+
+.calendar-item-time-stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.05;
+}
+
+.calendar-item-time-inline {
+  white-space: nowrap;
 }
 
 .calendar-item-task.p5 {
@@ -941,6 +961,10 @@ textarea {
   .top-panels,
   .calendar-layout {
     grid-template-columns: 1fr;
+  }
+
+  .top-panels > .panel {
+    height: auto;
   }
 
   .bottom-panels {

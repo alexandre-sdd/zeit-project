@@ -468,6 +468,35 @@
         return `P${item.priority || 0}`;
       }
 
+      function formatClock(value, options = {}) {
+        return localDate(value).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          ...options,
+        });
+      }
+
+      function calendarTimeMarkup(item, densityClass) {
+        if (densityClass === "calendar-item-tiny") {
+          return "";
+        }
+
+        if (densityClass === "calendar-item-compact") {
+          return `
+            <span class="calendar-item-time calendar-item-time-inline">
+              ${formatClock(item.startsAt, { hour12: false })} - ${formatClock(item.endsAt, { hour12: false })}
+            </span>
+          `;
+        }
+
+        return `
+          <span class="calendar-item-time calendar-item-time-stacked">
+            <span>${formatClock(item.startsAt)}</span>
+            <span>${formatClock(item.endsAt)}</span>
+          </span>
+        `;
+      }
+
       function taskBlockView(block) {
         const task = tasksById.get(block.task_id) || {};
         const priority = block.task_priority ?? task.priority ?? 0;
@@ -542,7 +571,7 @@
               >
                 <div class="calendar-item-top">
                   ${badge}
-                  <span class="calendar-item-time">${localDate(item.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - ${localDate(item.endsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                  ${calendarTimeMarkup(item, densityClass)}
                 </div>
                 <h3>${item.title}</h3>
                 <p>${meta}</p>
