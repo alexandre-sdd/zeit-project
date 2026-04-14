@@ -7,6 +7,7 @@ Zeit is a User-friendly prototype for an intelligent scheduling assistant. It no
 - FastAPI application with a server-rendered demo page at `/`.
 - JSON endpoints for tasks, events, blocks, schedule-run logs, demo reset, and schedule generation.
 - SQLAlchemy data model for users, tasks, events, generated schedule blocks, and persisted schedule-run diagnostics.
+- Alembic-backed schema migrations applied on app startup.
 - A Monday-Friday, 9-5 scheduler that respects hard events and hard due dates, persists planned blocks, and reports unscheduled work.
 - Developer-facing run diagnostics that persist solver inputs and decision traces for later inspection.
 - Automated tests covering solver behavior, API flows, and UI smoke paths.
@@ -33,6 +34,10 @@ zeit-project/
 ├── README.md
 └── requirements.txt
 ```
+
+Additional docs:
+- [Architecture](docs/ARCHITECTURE.md)
+- [Checklist](docs/CHECKLIST.md)
 
 ## Quick Start
 
@@ -198,6 +203,7 @@ python app/db_visualizer.py
 ```bash
 pytest -q
 python -m compileall app
+alembic upgrade head
 ```
 
 ## Notes
