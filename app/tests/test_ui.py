@@ -12,11 +12,14 @@ def test_root_page_renders_seeded_demo(client: TestClient) -> None:
     assert "Generate Schedule" in response.text
     assert "Download ICS" in response.text
     assert "Optimisation calendar" in response.text
-    assert "Allocated time by priority" in response.text
+    assert "Allocated time by priority level" in response.text
     assert "Solver status and recent runs" in response.text
     assert "Working Window" in response.text
     assert 'id="workday-start"' in response.text
     assert 'id="workday-end"' in response.text
+    assert "Urgent" in response.text
+    assert "Important" in response.text
+    assert "When possible" in response.text
     assert "Next steps" in response.text
     assert "Google Calendar, Slack" in response.text
     assert "cannot break tasks into smaller blocks" in response.text

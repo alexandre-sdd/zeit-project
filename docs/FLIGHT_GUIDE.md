@@ -155,6 +155,7 @@ curl "http://127.0.0.1:8000/health"
 curl "http://127.0.0.1:8000/tasks"
 
 # create a task
+# priority levels: 1 = when possible, 2 = important, 3 = urgent
 curl -X POST "http://127.0.0.1:8000/tasks" \
   -H "Content-Type: application/json" \
   -d '{

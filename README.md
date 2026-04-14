@@ -178,7 +178,7 @@ Core entities live in `app/db/models.py` and mirror the planned scheduling workf
 
 - `User` owns tasks, events, and blocks.
 - `ScheduleRun` stores persisted solver diagnostics for each generated plan.
-- `Task` captures work to be scheduled, including duration, priority, and optional due date.
+- `Task` captures work to be scheduled, including duration, one of three priority levels, and an optional due date.
 - `Event` represents fixed calendar constraints.
 - `Block` stores the generated schedule output.
 
@@ -186,6 +186,7 @@ Core entities live in `app/db/models.py` and mirror the planned scheduling workf
 
 - Planning window: Monday-Friday, `09:00` to `17:00`
 - Scheduling granularity: 30-minute slots
+- Priority levels: `urgent` (3), `important` (2), `when possible` (1)
 - Tasks are kept as one contiguous block in v1
 - Hard events block time completely
 - Hard due tasks must finish before `due_at`

@@ -14,6 +14,7 @@ from math import ceil, floor
 import sys
 from typing import Any
 
+from app.core.priorities import normalize_priority, priority_label
 from app.domain.entities import Block, Event, ScheduleResult, SolverRun, Task, UnscheduledTask
 from app.services.schedule_policy import (
     SLOT_MINUTES,
@@ -143,16 +144,18 @@ def _task_sort_key(task: Task) -> tuple[int, int, datetime, int, str]:
     due_bucket = 0 if task.due_is_hard else 1 if task.due_at is not None else 2
     due_value = task.due_at or datetime.max
     duration_slots = slot_count(task.est_duration_min)
-    return (-max(task.priority, 1), due_bucket, due_value, -duration_slots, task.title)
+    priority = normalize_priority(task.priority)
+    return (-priority, due_bucket, due_value, -duration_slots, task.title)
 
 
 def _make_unscheduled(task: Task, reason: str) -> UnscheduledTask:
+    normalized_priority = normalize_priority(task.priority)
     return UnscheduledTask(
         task_id=task.id,
         user_id=task.user_id,
         title=task.title,
         est_duration_min=task.est_duration_min,
-        priority=task.priority,
+        priority=normalized_priority,
         due_at=task.due_at,
         reason=reason,
     )
@@ -162,8 +165,11 @@ def _task_sort_details(task: Task) -> dict[str, Any]:
     due_bucket = 0 if task.due_is_hard else 1 if task.due_at is not None else 2
     due_value = task.due_at or datetime.max
     duration_slots = slot_count(task.est_duration_min)
+    normalized_priority = normalize_priority(task.priority)
     return {
-        "priority_weight": max(task.priority, 1),
+        "priority": normalized_priority,
+        "priority_label": priority_label(normalized_priority),
+        "priority_weight": normalized_priority,
         "due_bucket": due_bucket,
         "due_value": None if due_value == datetime.max else due_value,
         "duration_slots": duration_slots,
@@ -172,11 +178,13 @@ def _task_sort_details(task: Task) -> dict[str, Any]:
 
 
 def _task_trace_header(task: Task, evaluation_index: int) -> dict[str, Any]:
+    normalized_priority = normalize_priority(task.priority)
     return {
         "evaluation_index": evaluation_index,
         "task_id": task.id,
         "title": task.title,
-        "priority": task.priority,
+        "priority": normalized_priority,
+        "priority_label": priority_label(normalized_priority),
         "est_duration_min": task.est_duration_min,
         "due_at": task.due_at,
         "due_is_hard": task.due_is_hard,
@@ -664,7 +672,7 @@ def _build_schedule_cp_sat(
     objective_terms = []
     for candidate in scheduled_candidates:
         task = candidate["task"]
-        priority_weight = max(task.priority, 1)
+        priority_weight = normalize_priority(task.priority)
         objective_terms.append(candidate["present_var"] * priority_weight * int(candidate["duration_slots"]) * 10_000)
         objective_terms.append(candidate["start_reward"])
         if candidate["on_time_var"] is not None:

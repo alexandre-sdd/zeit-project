@@ -11,7 +11,7 @@ WEEK_START = date(2026, 4, 13)
 def test_solver_respects_hard_events() -> None:
     result = build_schedule(
         tasks=[
-            Task(id=1, user_id=1, title="Deep work", est_duration_min=120, priority=4),
+            Task(id=1, user_id=1, title="Deep work", est_duration_min=120, priority=3),
         ],
         events=[
             Event(
@@ -38,7 +38,7 @@ def test_solver_enforces_hard_due_dates() -> None:
                 user_id=1,
                 title="Prep",
                 est_duration_min=120,
-                priority=5,
+                priority=3,
                 due_at=datetime(2026, 4, 13, 12, 0),
                 due_is_hard=True,
             )
@@ -68,9 +68,9 @@ def test_solver_keeps_each_task_as_one_contiguous_block() -> None:
 def test_solver_never_overlaps_scheduled_tasks() -> None:
     result = build_schedule(
         tasks=[
-            Task(id=1, user_id=1, title="Task A", est_duration_min=240, priority=5),
-            Task(id=2, user_id=1, title="Task B", est_duration_min=240, priority=4),
-            Task(id=3, user_id=1, title="Task C", est_duration_min=180, priority=3),
+            Task(id=1, user_id=1, title="Task A", est_duration_min=240, priority=3),
+            Task(id=2, user_id=1, title="Task B", est_duration_min=240, priority=3),
+            Task(id=3, user_id=1, title="Task C", est_duration_min=180, priority=2),
         ],
         events=[],
         options={"week_start": WEEK_START},
@@ -84,9 +84,9 @@ def test_solver_never_overlaps_scheduled_tasks() -> None:
 def test_solver_returns_partial_schedule_when_capacity_runs_out() -> None:
     result = build_schedule(
         tasks=[
-            Task(id=1, user_id=1, title="Task 1", est_duration_min=480, priority=5),
-            Task(id=2, user_id=1, title="Task 2", est_duration_min=480, priority=4),
-            Task(id=3, user_id=1, title="Task 3", est_duration_min=480, priority=3),
+            Task(id=1, user_id=1, title="Task 1", est_duration_min=480, priority=3),
+            Task(id=2, user_id=1, title="Task 2", est_duration_min=480, priority=3),
+            Task(id=3, user_id=1, title="Task 3", est_duration_min=480, priority=2),
             Task(id=4, user_id=1, title="Task 4", est_duration_min=480, priority=2),
             Task(id=5, user_id=1, title="Task 5", est_duration_min=480, priority=1),
             Task(id=6, user_id=1, title="Task 6", est_duration_min=480, priority=1),
@@ -102,7 +102,7 @@ def test_solver_returns_partial_schedule_when_capacity_runs_out() -> None:
 def test_solver_keeps_blocks_ending_at_workday_boundary_on_same_day() -> None:
     result = build_schedule(
         tasks=[
-            Task(id=1, user_id=1, title="Full day task", est_duration_min=480, priority=5),
+            Task(id=1, user_id=1, title="Full day task", est_duration_min=480, priority=3),
         ],
         events=[],
         options={"week_start": WEEK_START},
@@ -121,7 +121,7 @@ def test_solver_marks_impossible_hard_due_tasks() -> None:
                 user_id=1,
                 title="Impossible due",
                 est_duration_min=180,
-                priority=5,
+                priority=3,
                 due_at=datetime(2026, 4, 13, 10, 0),
                 due_is_hard=True,
             )
@@ -137,7 +137,7 @@ def test_solver_marks_impossible_hard_due_tasks() -> None:
 def test_solver_honors_custom_workday_window() -> None:
     result = build_schedule(
         tasks=[
-            Task(id=1, user_id=1, title="Morning focus", est_duration_min=240, priority=5),
+            Task(id=1, user_id=1, title="Morning focus", est_duration_min=240, priority=3),
         ],
         events=[],
         options={

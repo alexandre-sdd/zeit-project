@@ -233,7 +233,7 @@ Stored in DB:
 - `est_duration_min`
 - `due_at`
 - `due_is_hard`
-- `priority`
+- `priority` as one of three levels: `urgent` (3), `important` (2), or `when possible` (1)
 - `category`
 - `preferred_location`
 - `repeat_rule`
@@ -241,7 +241,7 @@ Stored in DB:
 Used by solver:
 - duration
 - due date hardness
-- priority
+- priority as one of three levels: urgent, important, or when possible
 - title as final tie-breaker
 
 ### Event payload

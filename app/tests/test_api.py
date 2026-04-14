@@ -30,6 +30,7 @@ def test_create_and_list_tasks_round_trip(client: TestClient) -> None:
     created_task = create_response.json()
     assert created_task["title"] == "Prepare visitor walkthrough"
     assert created_task["priority"] == 2
+    assert created_task["priority_label"] == "Important"
 
     list_response = client.get("/tasks", params={"user_id": 1})
 
@@ -44,7 +45,7 @@ def test_create_task_rejects_invalid_payload(client: TestClient) -> None:
             "user_id": 0,
             "title": "",
             "est_duration_min": 0,
-            "priority": -1,
+            "priority": 4,
         },
     )
 
@@ -325,6 +326,7 @@ def test_schedule_generation_persists_run_log(client: TestClient) -> None:
     assert latest_log["constraints"]["workday_start"] == "09:00:00"
     assert latest_log["constraints"]["workday_end"] == "21:00:00"
     assert len(latest_log["tasks_to_plan"]) > 0
+    assert "priority_label" in latest_log["tasks_to_plan"][0]
     assert latest_log["solver"]["engine"] in {"or_tools_cp_sat", "greedy_fallback"}
     assert latest_log["solver"]["diagnostics"]["task_order"]
     assert latest_log["solver"]["diagnostics"]["task_traces"]
@@ -341,7 +343,7 @@ def test_schedule_generation_accepts_custom_workday_window(client: TestClient) -
             "user_id": 1,
             "title": "Morning focus",
             "est_duration_min": 240,
-            "priority": 4,
+            "priority": 3,
         },
     )
     assert task_response.status_code == 201
@@ -361,6 +363,7 @@ def test_schedule_generation_accepts_custom_workday_window(client: TestClient) -
     assert payload["scheduled_count"] == 1
     assert payload["blocks"][0]["starts_at"] == "2026-04-13T08:00:00"
     assert payload["blocks"][0]["ends_at"] == "2026-04-13T12:00:00"
+    assert payload["blocks"][0]["task_priority_label"] == "Urgent"
 
 
 def test_schedule_generation_rejects_invalid_workday_window(client: TestClient) -> None:

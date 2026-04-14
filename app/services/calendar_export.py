@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
+from app.core.priorities import priority_label
 from app.domain.entities import Block
 
 
@@ -107,7 +108,7 @@ def schedule_to_ics(*, blocks: Iterable[object], events: Iterable[object]) -> st
         priority = getattr(task, "priority", None)
         description_parts = ["Generated task block"]
         if priority is not None:
-            description_parts.append(f"Priority P{priority}")
+            description_parts.append(f"Priority {priority_label(priority)}")
         if getattr(block, "generated_by", None):
             description_parts.append(f"Engine: {getattr(block, 'generated_by')}")
         _append_ics_event(

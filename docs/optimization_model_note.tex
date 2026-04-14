@@ -42,7 +42,7 @@ even though the final UI renders the selected slots back onto a wall-clock calen
 For each task \(i \in T\), the model takes:
 \begin{itemize}
   \item duration \(p_i\) measured in 30-minute slots,
-  \item priority \(w_i \ge 0\),
+  \item priority \(w_i \in \{1,2,3\}\), where \(1\) means ``when possible,'' \(2\) means ``important,'' and \(3\) means ``urgent,''
   \item optional due date \(d_i\),
   \item hard-deadline flag \(h_i \in \{0,1\}\).
 \end{itemize}
@@ -117,7 +117,7 @@ maximisation:
 
 The three components mean:
 \begin{itemize}
-  \item schedule high-priority, long-duration tasks first,
+  \item schedule urgent work ahead of important work, and important work ahead of work that is merely ``when possible,''
   \item prefer finishing due-dated work on time,
   \item break ties toward earlier starts in the week.
 \end{itemize}
@@ -128,7 +128,7 @@ scheduled work, then uses due-date performance and earliness as secondary prefer
 \section{Greedy Fallback}
 When OR-Tools is unavailable, tasks are sorted by:
 \begin{enumerate}
-  \item descending priority,
+  \item descending priority level: urgent, then important, then when possible,
   \item hard due dates before soft due dates before undated work,
   \item earlier due dates,
   \item longer durations,
@@ -144,14 +144,14 @@ demo schedule.
   \item Only one workweek is considered at a time.
   \item The workday window applies to one planning run; it is not yet stored as a persistent user preference.
   \item Context switching, travel, and preferred sequencing are not modelled yet.
-  \item Priority is treated as a scalar weight rather than a richer utility curve.
+  \item Priority is still treated as a scalar three-level weight rather than a richer utility curve.
 \end{itemize}
 
 \section{UI Interpretation}
 The calendar UI should therefore display three distinct outcomes:
 \begin{itemize}
   \item locked event slots that are fixed by the input calendar,
-  \item scheduled task blocks placed by the optimiser and coloured by priority,
+  \item scheduled task blocks placed by the optimiser and coloured by the three priority levels,
   \item unscheduled tasks with explicit infeasibility reasons.
 \end{itemize}
 This makes the optimisation result interpretable without exposing solver internals directly.

@@ -23,6 +23,14 @@ from app.api.schemas import (
     TaskRead,
     UnscheduledTaskRead,
 )
+from app.core.priorities import (
+    DEFAULT_PRIORITY,
+    normalize_priority,
+    priority_css_class,
+    priority_label,
+    priority_metadata,
+    priority_options,
+)
 from app.db import models
 from app.db.session import get_db
 from app.core.settings import get_settings
@@ -51,7 +59,18 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent
 
 
 def _task_to_read(task: models.Task) -> TaskRead:
-    return TaskRead.model_validate(task)
+    return TaskRead(
+        id=task.id,
+        user_id=task.user_id,
+        title=task.title,
+        est_duration_min=task.est_duration_min,
+        due_at=task.due_at,
+        due_is_hard=task.due_is_hard,
+        priority=normalize_priority(task.priority),
+        category=task.category,
+        preferred_location=task.preferred_location,
+        repeat_rule=task.repeat_rule,
+    )
 
 
 def _event_to_read(event: models.Event) -> EventRead:
@@ -60,6 +79,7 @@ def _event_to_read(event: models.Event) -> EventRead:
 
 def _block_to_read(block: models.Block) -> BlockRead:
     duration_min = int((block.ends_at - block.starts_at).total_seconds() // 60)
+    normalized_priority = normalize_priority(block.task.priority) if block.task is not None else None
     return BlockRead(
         id=block.id,
         user_id=block.user_id,
@@ -67,7 +87,7 @@ def _block_to_read(block: models.Block) -> BlockRead:
         event_id=block.event_id,
         task_title=block.task.title if block.task is not None else None,
         event_title=block.event.title if block.event is not None else None,
-        task_priority=block.task.priority if block.task is not None else None,
+        task_priority=normalized_priority,
         task_category=block.task.category if block.task is not None else None,
         task_due_at=block.task.due_at if block.task is not None else None,
         starts_at=block.starts_at,
@@ -110,12 +130,13 @@ def _schedule_run_to_read(schedule_run: models.ScheduleRun) -> ScheduleRunRead:
 
 
 def _unscheduled_to_read(title: str, user_id: int, est_duration_min: int, priority: int, reason: str, task_id: int | None = None, due_at=None) -> UnscheduledTaskRead:
+    normalized_priority = normalize_priority(priority)
     return UnscheduledTaskRead(
         task_id=task_id,
         user_id=user_id,
         title=title,
         est_duration_min=est_duration_min,
-        priority=priority,
+        priority=normalized_priority,
         due_at=due_at,
         reason=reason,
     )
@@ -180,6 +201,11 @@ def demo_page(request: Request, db: DbSession) -> HTMLResponse:
             "workday_end_value": minutes_to_time_value(workday_window.end_minutes),
             "workday_slot_count": workday_window.slots_per_day,
             "slot_minutes": SLOT_MINUTES,
+            "default_priority": DEFAULT_PRIORITY,
+            "priority_options": priority_options(),
+            "priority_meta": priority_metadata(),
+            "priority_label": priority_label,
+            "priority_css_class": priority_css_class,
             "initial_solver_run": initial_solver_run.model_dump(mode="json"),
             "initial_schedule_runs": run_log_payload,
             "assets": {

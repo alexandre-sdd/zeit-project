@@ -18,6 +18,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
+from app.core.priorities import DEFAULT_PRIORITY
+
 from .base import Base
 
 
@@ -43,7 +45,7 @@ class Task(Base):
     est_duration_min = Column(Integer, nullable=False)
     due_at = Column(DateTime, nullable=True)
     due_is_hard = Column(Boolean, nullable=False, default=False)
-    priority = Column(Integer, nullable=False, default=0)
+    priority = Column(Integer, nullable=False, default=DEFAULT_PRIORITY)
     category = Column(String, nullable=True)
     preferred_location = Column(String, nullable=True)
     repeat_rule = Column(String, nullable=True)

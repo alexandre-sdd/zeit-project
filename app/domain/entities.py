@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
 
+from app.core.priorities import DEFAULT_PRIORITY
+
 
 @dataclass(slots=True)
 class User:
@@ -27,7 +29,7 @@ class Task:
     est_duration_min: int
     due_at: Optional[datetime] = None
     due_is_hard: bool = False
-    priority: int = 0
+    priority: int = DEFAULT_PRIORITY
     category: Optional[str] = None
     preferred_location: Optional[str] = None
     repeat_rule: Optional[str] = None
@@ -65,7 +67,7 @@ class UnscheduledTask:
     user_id: int
     title: str
     est_duration_min: int
-    priority: int = 0
+    priority: int = DEFAULT_PRIORITY
     due_at: Optional[datetime] = None
     reason: str = "no_capacity"
 

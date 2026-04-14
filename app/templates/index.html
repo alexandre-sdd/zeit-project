@@ -80,7 +80,7 @@
                 <p class="section-label">Tasks</p>
                 <h2>Work queued for the week</h2>
               </div>
-              <span class="panel-hint">Add tasks, set priority, and optionally force a due date.</span>
+              <span class="panel-hint">Add tasks, choose a priority level, and optionally force a due date.</span>
             </div>
 
             <form id="task-form" class="editor-form">
@@ -95,7 +95,13 @@
               </label>
               <label>
                 <span>Priority</span>
-                <input name="priority" type="number" required min="0" max="5" value="2" />
+                <select name="priority" required>
+                  {% for option in priority_options %}
+                  <option value="{{ option.value }}" {% if option.value == default_priority %}selected{% endif %}>
+                    {{ option.label }}
+                  </option>
+                  {% endfor %}
+                </select>
               </label>
               <label>
                 <span>Due At</span>
@@ -130,7 +136,7 @@
                       {% endif %}
                     </td>
                     <td>{{ task.est_duration_min }} min</td>
-                    <td><span class="priority-pill priority-pill-p{{ task.priority }}">{{ "P%s" % task.priority }}</span></td>
+                    <td><span class="priority-pill priority-pill-{{ priority_css_class(task.priority) }}">{{ priority_label(task.priority) }}</span></td>
                     <td>
                       {% if task.due_at %}
                         {{ task.due_at.strftime('%a %H:%M') }}
@@ -258,9 +264,9 @@
 
           <div class="legend-row">
             <span class="legend-item"><span class="legend-swatch legend-fixed"></span>Locked event</span>
-            <span class="legend-item"><span class="legend-swatch legend-p5"></span>P5 task</span>
-            <span class="legend-item"><span class="legend-swatch legend-p3"></span>P3-P4 task</span>
-            <span class="legend-item"><span class="legend-swatch legend-p1"></span>P1-P2 task</span>
+            <span class="legend-item"><span class="legend-swatch legend-urgent"></span>Urgent task</span>
+            <span class="legend-item"><span class="legend-swatch legend-important"></span>Important task</span>
+            <span class="legend-item"><span class="legend-swatch legend-when-possible"></span>When possible task</span>
           </div>
 
           <div class="calendar-layout" id="calendar-layout" style="--slot-count: {{ workday_slot_count }};">
@@ -300,7 +306,7 @@
               <section class="summary-card">
                 <div class="summary-card-header">
                   <p class="section-label">Priority Mix</p>
-                  <h3>Allocated time by priority</h3>
+                  <h3>Allocated time by priority level</h3>
                 </div>
                 <div id="priority-breakdown" class="priority-breakdown">
                   <p class="empty-state compact-empty">Generate a schedule to see how the optimiser spends time.</p>
@@ -409,6 +415,7 @@
       const initialBlocks = {{ initial_blocks | tojson }};
       const initialSolverRun = {{ initial_solver_run | tojson }};
       const initialScheduleRuns = {{ initial_schedule_runs | tojson }};
+      const priorityMeta = {{ priority_meta | tojson }};
       const routes = {{ routes | tojson }};
 
       const weekStartDate = new Date(`${weekStart}T00:00:00`);
@@ -489,6 +496,21 @@
         if (index !== -1) {
           items.splice(index, 1);
         }
+      }
+
+      function normalizedPriority(priority) {
+        if (priority >= 4) return 3;
+        if (priority >= 2) return 2;
+        if (priority >= 1) return 1;
+        return {{ default_priority }};
+      }
+
+      function priorityData(priority) {
+        return priorityMeta[String(normalizedPriority(priority))];
+      }
+
+      function priorityLabel(priority) {
+        return priorityData(priority).label;
       }
 
       function parseTimeValue(value) {
@@ -655,9 +677,7 @@
       }
 
       function priorityClass(priority) {
-        if (priority >= 5) return "p5";
-        if (priority >= 3) return "p3";
-        return "p1";
+        return priorityData(priority).css_class;
       }
 
       function calendarDensityClass(slotSpan) {
@@ -670,7 +690,10 @@
         if (item.kind === "event") {
           return densityClass === "calendar-item-tiny" ? "L" : densityClass === "calendar-item-compact" ? "Lock" : "Locked";
         }
-        return `P${item.priority || 0}`;
+        if (densityClass === "calendar-item-tiny") {
+          return priorityData(item.priority).tiny_label;
+        }
+        return priorityData(item.priority).short_label;
       }
 
       function formatClock(value, options = {}) {
@@ -704,7 +727,7 @@
 
       function taskBlockView(block) {
         const task = tasksById.get(block.task_id) || {};
-        const priority = block.task_priority ?? task.priority ?? 0;
+        const priority = normalizedPriority(block.task_priority ?? task.priority);
         const category = block.task_category ?? task.category ?? "task";
         const dueAt = block.task_due_at ?? task.due_at ?? null;
         const durationMin = block.duration_min ?? durationMinutes(block.starts_at, block.ends_at);
@@ -796,7 +819,7 @@
         let totalMinutes = 0;
 
         blocks.map(taskBlockView).forEach((block) => {
-          const priority = block.priority || 0;
+          const priority = normalizedPriority(block.priority);
           totals.set(priority, (totals.get(priority) || 0) + block.durationMin);
           totalMinutes += block.durationMin;
         });
@@ -816,7 +839,7 @@
             return `
               <div class="priority-row">
                 <div class="priority-row-label">
-                  <span class="priority-pill priority-pill-${band}">P${priority}</span>
+                  <span class="priority-pill priority-pill-${band}">${priorityLabel(priority)}</span>
                   <strong>${formatHours(minutes)}</strong>
                   <span>${Math.round((minutes / totalMinutes) * 100)}%</span>
                 </div>
@@ -846,7 +869,7 @@
                   <strong>${item.title}</strong>
                 </div>
                 <div class="queue-meta">
-                  <span class="priority-pill priority-pill-${priorityClass(item.priority || 0)}">P${item.priority || 0}</span>
+                  <span class="priority-pill priority-pill-${priorityClass(item.priority)}">${priorityLabel(item.priority)}</span>
                   <span>${formatHours(item.durationMin)}</span>
                 </div>
               </article>
@@ -874,7 +897,7 @@
               <li class="reason-item">
                 <div>
                   <strong>${task.title}</strong>
-                  <span>${task.est_duration_min} min · P${task.priority}${task.due_at ? ` · due ${formatDateTime(task.due_at)}` : ""}</span>
+                  <span>${task.est_duration_min} min · ${priorityLabel(task.priority)}${task.due_at ? ` · due ${formatDateTime(task.due_at)}` : ""}</span>
                 </div>
                 <em>${task.reason.replaceAll("_", " ")}</em>
               </li>
@@ -1045,7 +1068,7 @@
                     ${runLineItems(
                       tasksToPlan,
                       "No tasks were submitted.",
-                      (item) => `${item.title || "Untitled"} · ${item.est_duration_min} min · P${item.priority ?? 0}${item.due_at ? ` · due ${formatDateTimeShort(item.due_at)}` : ""}`,
+                      (item) => `${item.title || "Untitled"} · ${item.est_duration_min} min · ${item.priority_label || priorityLabel(item.priority)}${item.due_at ? ` · due ${formatDateTimeShort(item.due_at)}` : ""}`,
                     )}
                   </ul>
                 </section>

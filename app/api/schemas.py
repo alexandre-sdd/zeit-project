@@ -6,8 +6,9 @@ from __future__ import annotations
 from datetime import date, datetime, time
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
+from app.core.priorities import DEFAULT_PRIORITY, MAX_PRIORITY, MIN_PRIORITY, priority_label
 from app.services.schedule_policy import SLOT_MINUTES, time_to_minutes
 
 
@@ -21,7 +22,7 @@ class TaskCreate(BaseModel):
     user_id: int = Field(..., gt=0)
     title: str = Field(..., min_length=1, max_length=255)
     est_duration_min: int = Field(..., gt=0)
-    priority: int = Field(default=0, ge=0)
+    priority: int = Field(default=DEFAULT_PRIORITY, ge=MIN_PRIORITY, le=MAX_PRIORITY)
     due_at: datetime | None = None
     due_is_hard: bool = False
     category: str | None = Field(default=None, max_length=255)
@@ -38,10 +39,15 @@ class TaskRead(BaseModel):
     est_duration_min: int
     due_at: datetime | None = None
     due_is_hard: bool
-    priority: int
+    priority: int = Field(..., ge=MIN_PRIORITY, le=MAX_PRIORITY)
     category: str | None = None
     preferred_location: str | None = None
     repeat_rule: str | None = None
+
+    @computed_field
+    @property
+    def priority_label(self) -> str:
+        return priority_label(self.priority)
 
 
 class EventCreate(BaseModel):
@@ -80,7 +86,7 @@ class BlockRead(BaseModel):
     event_id: int | None = None
     task_title: str | None = None
     event_title: str | None = None
-    task_priority: int | None = None
+    task_priority: int | None = Field(default=None, ge=MIN_PRIORITY, le=MAX_PRIORITY)
     task_category: str | None = None
     task_due_at: datetime | None = None
     starts_at: datetime
@@ -91,15 +97,27 @@ class BlockRead(BaseModel):
     lock_level: str
     generated_by: str
 
+    @computed_field
+    @property
+    def task_priority_label(self) -> str | None:
+        if self.task_priority is None:
+            return None
+        return priority_label(self.task_priority)
+
 
 class UnscheduledTaskRead(BaseModel):
     task_id: int | None = None
     user_id: int
     title: str
     est_duration_min: int
-    priority: int
+    priority: int = Field(..., ge=MIN_PRIORITY, le=MAX_PRIORITY)
     due_at: datetime | None = None
     reason: str
+
+    @computed_field
+    @property
+    def priority_label(self) -> str:
+        return priority_label(self.priority)
 
 
 class SolverRunRead(BaseModel):

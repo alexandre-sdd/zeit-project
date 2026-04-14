@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.priorities import normalize_priority, priority_css_class, priority_label
 from app.db import models
 from app.domain.entities import Block, Event, ScheduleResult, SolverRun, Task, UnscheduledTask
 from app.services.schedule_policy import SLOT_MINUTES, resolve_workday_window, week_bounds, week_end_date
@@ -38,7 +39,7 @@ def _to_domain_task(task: models.Task) -> Task:
         est_duration_min=task.est_duration_min,
         due_at=task.due_at,
         due_is_hard=task.due_is_hard,
-        priority=task.priority,
+        priority=normalize_priority(task.priority),
         category=task.category,
         preferred_location=task.preferred_location,
         repeat_rule=task.repeat_rule,
@@ -96,13 +97,32 @@ def list_schedule_runs(
 
 
 def load_schedule_run_payload(schedule_run: models.ScheduleRun) -> dict[str, Any]:
+    def normalize_payload(value: Any) -> Any:
+        if isinstance(value, list):
+            return [normalize_payload(item) for item in value]
+        if isinstance(value, dict):
+            normalized = {key: normalize_payload(item) for key, item in value.items()}
+            if isinstance(normalized.get("priority"), int):
+                normalized_priority = normalize_priority(normalized["priority"])
+                normalized["priority"] = normalized_priority
+                normalized.setdefault("priority_label", priority_label(normalized_priority))
+                normalized.setdefault("priority_css_class", priority_css_class(normalized_priority))
+            if isinstance(normalized.get("task_priority"), int):
+                normalized_task_priority = normalize_priority(normalized["task_priority"])
+                normalized["task_priority"] = normalized_task_priority
+                normalized.setdefault("task_priority_label", priority_label(normalized_task_priority))
+            if isinstance(normalized.get("priority_weight"), int):
+                normalized["priority_weight"] = normalize_priority(normalized["priority_weight"])
+            return normalized
+        return value
+
     return {
-        "constraints": json.loads(schedule_run.constraints_json),
-        "tasks_to_plan": json.loads(schedule_run.tasks_to_plan_json),
-        "planned_tasks": json.loads(schedule_run.planned_tasks_json),
-        "unplanned_tasks": json.loads(schedule_run.unplanned_tasks_json),
-        "solver": json.loads(schedule_run.solver_json),
-        "solution": json.loads(schedule_run.solution_json),
+        "constraints": normalize_payload(json.loads(schedule_run.constraints_json)),
+        "tasks_to_plan": normalize_payload(json.loads(schedule_run.tasks_to_plan_json)),
+        "planned_tasks": normalize_payload(json.loads(schedule_run.planned_tasks_json)),
+        "unplanned_tasks": normalize_payload(json.loads(schedule_run.unplanned_tasks_json)),
+        "solver": normalize_payload(json.loads(schedule_run.solver_json)),
+        "solution": normalize_payload(json.loads(schedule_run.solution_json)),
     }
 
 
@@ -130,11 +150,14 @@ def _json_dump(value: Any) -> str:
 
 
 def _serialize_task_row(task: models.Task) -> dict[str, Any]:
+    normalized_priority = normalize_priority(task.priority)
     return {
         "task_id": task.id,
         "title": task.title,
         "est_duration_min": task.est_duration_min,
-        "priority": task.priority,
+        "priority": normalized_priority,
+        "priority_label": priority_label(normalized_priority),
+        "priority_css_class": priority_css_class(normalized_priority),
         "due_at": task.due_at,
         "due_is_hard": task.due_is_hard,
         "category": task.category,
@@ -156,11 +179,14 @@ def _serialize_event_row(event: models.Event) -> dict[str, Any]:
 
 
 def _serialize_unscheduled_task(task: UnscheduledTask) -> dict[str, Any]:
+    normalized_priority = normalize_priority(task.priority)
     return {
         "task_id": task.task_id,
         "title": task.title,
         "est_duration_min": task.est_duration_min,
-        "priority": task.priority,
+        "priority": normalized_priority,
+        "priority_label": priority_label(normalized_priority),
+        "priority_css_class": priority_css_class(normalized_priority),
         "due_at": task.due_at,
         "reason": task.reason,
     }
@@ -180,13 +206,16 @@ def _serialize_solver_run(solver_run: SolverRun) -> dict[str, Any]:
 def _serialize_planned_block(block: Block, task_lookup: dict[int, models.Task]) -> dict[str, Any]:
     task = task_lookup.get(block.task_id) if block.task_id is not None else None
     duration_min = int((block.ends_at - block.starts_at).total_seconds() // 60)
+    normalized_priority = normalize_priority(task.priority) if task is not None else None
     return {
         "task_id": block.task_id,
         "title": task.title if task is not None else None,
         "starts_at": block.starts_at,
         "ends_at": block.ends_at,
         "duration_min": duration_min,
-        "priority": task.priority if task is not None else None,
+        "priority": normalized_priority,
+        "priority_label": priority_label(normalized_priority) if normalized_priority is not None else None,
+        "priority_css_class": priority_css_class(normalized_priority) if normalized_priority is not None else None,
         "due_at": task.due_at if task is not None else None,
         "category": task.category if task is not None else None,
         "location": block.location,

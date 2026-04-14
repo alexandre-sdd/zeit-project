@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import models
+from app.core.priorities import PRIORITY_IMPORTANT, PRIORITY_URGENT, PRIORITY_WHEN_POSSIBLE
 
 from .schedule_policy import week_bounds
 
@@ -106,20 +107,20 @@ def reset_demo_data(db: Session) -> DemoState:
     ]
 
     tasks = [
-        models.Task(user_id=user.id, title="Build timeline demo", est_duration_min=180, priority=5, category="product"),
-        models.Task(user_id=user.id, title="Fix CP-SAT edge cases", est_duration_min=240, priority=5, category="engineering"),
-        models.Task(user_id=user.id, title="Prepare visitor walkthrough", est_duration_min=90, priority=4, due_at=_dt(3, 15, 0), due_is_hard=True, category="presentation"),
-        models.Task(user_id=user.id, title="Draft architecture notes", est_duration_min=150, priority=4, category="architecture"),
-        models.Task(user_id=user.id, title="Candidate Q&A prep", est_duration_min=150, priority=3, category="presentation"),
-        models.Task(user_id=user.id, title="Polish API docs", est_duration_min=120, priority=3, category="documentation"),
-        models.Task(user_id=user.id, title="Performance cleanup", est_duration_min=180, priority=3, category="engineering"),
-        models.Task(user_id=user.id, title="Visual polish pass", est_duration_min=180, priority=2, category="design"),
-        models.Task(user_id=user.id, title="Record demo voiceover", est_duration_min=120, priority=2, due_at=_dt(4, 14, 0), due_is_hard=True, category="presentation"),
-        models.Task(user_id=user.id, title="Write setup guide", est_duration_min=90, priority=2, category="documentation"),
-        models.Task(user_id=user.id, title="Accessibility review", est_duration_min=180, priority=2, category="quality"),
-        models.Task(user_id=user.id, title="Backlog grooming", est_duration_min=240, priority=1, category="planning"),
-        models.Task(user_id=user.id, title="Impossible launch memo", est_duration_min=180, priority=5, due_at=_dt(0, 10, 0), due_is_hard=True, category="presentation"),
-        models.Task(user_id=user.id, title="Oversized research block", est_duration_min=540, priority=1, category="research"),
+        models.Task(user_id=user.id, title="Build timeline demo", est_duration_min=180, priority=PRIORITY_URGENT, category="product"),
+        models.Task(user_id=user.id, title="Fix CP-SAT edge cases", est_duration_min=240, priority=PRIORITY_URGENT, category="engineering"),
+        models.Task(user_id=user.id, title="Prepare visitor walkthrough", est_duration_min=90, priority=PRIORITY_URGENT, due_at=_dt(3, 15, 0), due_is_hard=True, category="presentation"),
+        models.Task(user_id=user.id, title="Draft architecture notes", est_duration_min=150, priority=PRIORITY_URGENT, category="architecture"),
+        models.Task(user_id=user.id, title="Candidate Q&A prep", est_duration_min=150, priority=PRIORITY_IMPORTANT, category="presentation"),
+        models.Task(user_id=user.id, title="Polish API docs", est_duration_min=120, priority=PRIORITY_IMPORTANT, category="documentation"),
+        models.Task(user_id=user.id, title="Performance cleanup", est_duration_min=180, priority=PRIORITY_IMPORTANT, category="engineering"),
+        models.Task(user_id=user.id, title="Visual polish pass", est_duration_min=180, priority=PRIORITY_IMPORTANT, category="design"),
+        models.Task(user_id=user.id, title="Record demo voiceover", est_duration_min=120, priority=PRIORITY_IMPORTANT, due_at=_dt(4, 14, 0), due_is_hard=True, category="presentation"),
+        models.Task(user_id=user.id, title="Write setup guide", est_duration_min=90, priority=PRIORITY_IMPORTANT, category="documentation"),
+        models.Task(user_id=user.id, title="Accessibility review", est_duration_min=180, priority=PRIORITY_IMPORTANT, category="quality"),
+        models.Task(user_id=user.id, title="Backlog grooming", est_duration_min=240, priority=PRIORITY_WHEN_POSSIBLE, category="planning"),
+        models.Task(user_id=user.id, title="Impossible launch memo", est_duration_min=180, priority=PRIORITY_URGENT, due_at=_dt(0, 10, 0), due_is_hard=True, category="presentation"),
+        models.Task(user_id=user.id, title="Oversized research block", est_duration_min=540, priority=PRIORITY_WHEN_POSSIBLE, category="research"),
     ]
 
     db.add_all(events)
