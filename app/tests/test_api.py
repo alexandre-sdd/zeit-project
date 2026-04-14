@@ -92,6 +92,46 @@ def test_delete_task_removes_it_from_task_list(client: TestClient) -> None:
     assert list_response.json() == []
 
 
+def test_delete_task_form_route_removes_task_and_redirects(client: TestClient) -> None:
+    created_task = client.post(
+        "/tasks",
+        json={
+            "user_id": 1,
+            "title": "Delete me with form",
+            "est_duration_min": 60,
+            "priority": 2,
+        },
+    ).json()
+
+    delete_response = client.post(f"/tasks/{created_task['id']}/delete", follow_redirects=False)
+    assert delete_response.status_code == 303
+    assert delete_response.headers["location"] == "/"
+
+    list_response = client.get("/tasks", params={"user_id": 1})
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
+def test_delete_task_link_route_removes_task_and_redirects(client: TestClient) -> None:
+    created_task = client.post(
+        "/tasks",
+        json={
+            "user_id": 1,
+            "title": "Delete me with link",
+            "est_duration_min": 60,
+            "priority": 2,
+        },
+    ).json()
+
+    delete_response = client.get(f"/tasks/{created_task['id']}/remove", follow_redirects=False)
+    assert delete_response.status_code == 303
+    assert delete_response.headers["location"] == "/"
+
+    list_response = client.get("/tasks", params={"user_id": 1})
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
 def test_delete_event_removes_it_from_event_list(client: TestClient) -> None:
     created_event = client.post(
         "/events",
@@ -106,6 +146,48 @@ def test_delete_event_removes_it_from_event_list(client: TestClient) -> None:
 
     delete_response = client.delete(f"/events/{created_event['id']}")
     assert delete_response.status_code == 204
+
+    list_response = client.get("/events", params={"user_id": 1})
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
+def test_delete_event_link_route_removes_event_and_redirects(client: TestClient) -> None:
+    created_event = client.post(
+        "/events",
+        json={
+            "user_id": 1,
+            "title": "Delete this event with link",
+            "starts_at": "2026-04-13T11:00:00",
+            "ends_at": "2026-04-13T12:00:00",
+            "location": "Studio",
+        },
+    ).json()
+
+    delete_response = client.get(f"/events/{created_event['id']}/remove", follow_redirects=False)
+    assert delete_response.status_code == 303
+    assert delete_response.headers["location"] == "/"
+
+    list_response = client.get("/events", params={"user_id": 1})
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
+def test_delete_event_form_route_removes_event_and_redirects(client: TestClient) -> None:
+    created_event = client.post(
+        "/events",
+        json={
+            "user_id": 1,
+            "title": "Delete this event with form",
+            "starts_at": "2026-04-13T11:00:00",
+            "ends_at": "2026-04-13T12:00:00",
+            "location": "Studio",
+        },
+    ).json()
+
+    delete_response = client.post(f"/events/{created_event['id']}/delete", follow_redirects=False)
+    assert delete_response.status_code == 303
+    assert delete_response.headers["location"] == "/"
 
     list_response = client.get("/events", params={"user_id": 1})
     assert list_response.status_code == 200

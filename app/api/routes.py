@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -242,6 +242,11 @@ def create_task(
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(task_id: int, db: DbSession) -> Response:
     """Delete a task and any scheduled blocks linked to it."""
+    return _delete_task(task_id=task_id, db=db)
+
+
+def _delete_task(task_id: int, db: DbSession) -> Response:
+    """Delete a task and any scheduled blocks linked to it."""
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Task {task_id} was not found")
@@ -250,6 +255,20 @@ def delete_task(task_id: int, db: DbSession) -> Response:
     db.delete(task)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/tasks/{task_id}/delete", name="delete_task_form")
+def delete_task_form(task_id: int, request: Request, db: DbSession) -> RedirectResponse:
+    """Delete a task from the HTML UI and redirect back to the demo page."""
+    _delete_task(task_id=task_id, db=db)
+    return RedirectResponse(url=str(request.app.url_path_for("demo_page")), status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/tasks/{task_id}/remove", name="delete_task_link")
+def delete_task_link(task_id: int, request: Request, db: DbSession) -> RedirectResponse:
+    """Delete a task from a simple link-based HTML control and redirect back to the demo page."""
+    _delete_task(task_id=task_id, db=db)
+    return RedirectResponse(url=str(request.app.url_path_for("demo_page")), status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/events", response_model=list[EventRead])
@@ -279,6 +298,11 @@ def create_event(payload: EventCreate, db: DbSession) -> EventRead:
 @router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_event(event_id: int, db: DbSession) -> Response:
     """Delete a fixed calendar event and any linked blocks."""
+    return _delete_event(event_id=event_id, db=db)
+
+
+def _delete_event(event_id: int, db: DbSession) -> Response:
+    """Delete a fixed calendar event and any linked blocks."""
     event = db.query(models.Event).filter(models.Event.id == event_id).first()
     if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Event {event_id} was not found")
@@ -287,6 +311,20 @@ def delete_event(event_id: int, db: DbSession) -> Response:
     db.delete(event)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/events/{event_id}/delete", name="delete_event_form")
+def delete_event_form(event_id: int, request: Request, db: DbSession) -> RedirectResponse:
+    """Delete an event from the HTML UI and redirect back to the demo page."""
+    _delete_event(event_id=event_id, db=db)
+    return RedirectResponse(url=str(request.app.url_path_for("demo_page")), status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/events/{event_id}/remove", name="delete_event_link")
+def delete_event_link(event_id: int, request: Request, db: DbSession) -> RedirectResponse:
+    """Delete an event from a simple link-based HTML control and redirect back to the demo page."""
+    _delete_event(event_id=event_id, db=db)
+    return RedirectResponse(url=str(request.app.url_path_for("demo_page")), status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/blocks", response_model=list[BlockRead])

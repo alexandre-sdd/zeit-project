@@ -52,9 +52,9 @@
             <p class="window-note">Preview updates immediately. Generate Schedule uses this window for the current run.</p>
           </div>
           <div class="chip-row">
-            <span class="chip chip-warm">{{ task_count }} tasks</span>
-            <span class="chip chip-cool">{{ event_count }} locked events</span>
-            <span class="chip chip-neutral">{{ block_count }} planned blocks</span>
+            <span id="task-count-chip" class="chip chip-warm">{{ task_count }} tasks</span>
+            <span id="event-count-chip" class="chip chip-cool">{{ event_count }} locked events</span>
+            <span id="block-count-chip" class="chip chip-neutral">{{ block_count }} planned blocks</span>
           </div>
           <div class="action-row">
             <button id="reset-demo" class="button button-secondary" type="button">Reset Seed Data</button>
@@ -69,6 +69,8 @@
           </div>
         </div>
       </section>
+
+      <div id="request-feedback" class="request-feedback" hidden></div>
 
       <section class="dashboard-layout">
         <div class="top-panels">
@@ -141,9 +143,14 @@
                       <span class="task-status-pill" data-task-status="{{ task.id }}">Not evaluated</span>
                     </td>
                     <td class="action-cell">
-                      <button class="button button-danger table-action" type="button" data-task-delete="{{ task.id }}">
+                      <a
+                        class="button button-danger table-action"
+                        href="{{ request.url_for('delete_task_link', task_id=task.id) }}"
+                        data-task-delete-url="{{ request.url_for('delete_task', task_id=task.id) }}"
+                        data-task-id="{{ task.id }}"
+                      >
                         Remove
-                      </button>
+                      </a>
                     </td>
                   </tr>
                   {% endfor %}
@@ -194,7 +201,7 @@
                 </thead>
                 <tbody>
                   {% for event in events %}
-                  <tr>
+                  <tr data-event-row="{{ event.id }}">
                     <td>
                       <strong>{{ event.title }}</strong>
                       <span class="subtle">{{ event.source }}</span>
@@ -202,9 +209,14 @@
                     <td>{{ event.starts_at.strftime('%a %H:%M') }}</td>
                     <td>{{ event.ends_at.strftime('%a %H:%M') }}</td>
                     <td class="action-cell">
-                      <button class="button button-danger table-action" type="button" data-event-delete="{{ event.id }}">
+                      <a
+                        class="button button-danger table-action"
+                        href="{{ request.url_for('delete_event_link', event_id=event.id) }}"
+                        data-event-delete-url="{{ request.url_for('delete_event', event_id=event.id) }}"
+                        data-event-id="{{ event.id }}"
+                      >
                         Remove
-                      </button>
+                      </a>
                     </td>
                   </tr>
                   {% endfor %}
@@ -415,6 +427,9 @@
       const unscheduledTotalEl = document.getElementById("unscheduled-total");
       const solverLogEl = document.getElementById("solver-log");
       const runLogListEl = document.getElementById("run-log-list");
+      const taskCountChipEl = document.getElementById("task-count-chip");
+      const eventCountChipEl = document.getElementById("event-count-chip");
+      const blockCountChipEl = document.getElementById("block-count-chip");
 
       let currentBlocks = [...initialBlocks];
       let currentUnscheduled = null;
@@ -422,6 +437,28 @@
       let currentScheduleRuns = [...initialScheduleRuns];
       let currentWorkdayStartMinutes = parseTimeValue(initialWorkdayStart);
       let currentWorkdayEndMinutes = parseTimeValue(initialWorkdayEnd);
+      const requestFeedbackEl = document.getElementById("request-feedback");
+
+      function showRequestFeedback(message) {
+        requestFeedbackEl.textContent = message;
+        requestFeedbackEl.hidden = false;
+      }
+
+      function clearRequestFeedback() {
+        requestFeedbackEl.hidden = true;
+        requestFeedbackEl.textContent = "";
+      }
+
+      async function runAction(action, failureMessage) {
+        clearRequestFeedback();
+        try {
+          return await action();
+        } catch (error) {
+          console.error(error);
+          showRequestFeedback(`${failureMessage} ${error instanceof Error ? error.message : "Unknown error."}`);
+          throw error;
+        }
+      }
 
       function request(url, { method = "POST", payload = undefined } = {}) {
         const options = { method, headers: {} };
@@ -444,6 +481,13 @@
 
       function localDate(value) {
         return new Date(value);
+      }
+
+      function removeItemById(items, itemId) {
+        const index = items.findIndex((item) => item.id === itemId);
+        if (index !== -1) {
+          items.splice(index, 1);
+        }
       }
 
       function parseTimeValue(value) {
@@ -855,6 +899,12 @@
         scheduleSummaryEl.textContent = `${blocks.length} task blocks scheduled across ${formatHours(scheduledMinutes)} of focus time, with ${unscheduledTasks.length} tasks left out.`;
       }
 
+      function renderMetaCounts() {
+        taskCountChipEl.textContent = `${initialTasks.length} tasks`;
+        eventCountChipEl.textContent = `${initialEvents.length} locked events`;
+        blockCountChipEl.textContent = `${currentBlocks.length} planned blocks`;
+      }
+
       function renderTaskStatuses(blocks, unscheduledTasks) {
         const scheduledTaskIds = new Set(blocks.map((block) => block.task_id).filter(Boolean));
         const unscheduledTaskIds = new Set((unscheduledTasks || []).map((task) => task.task_id).filter(Boolean));
@@ -1025,6 +1075,7 @@
       }
 
       function renderDashboard() {
+        renderMetaCounts();
         renderCalendar(currentBlocks);
         renderPriorityBreakdown(currentBlocks);
         renderScheduledQueue(currentBlocks);
@@ -1035,39 +1086,66 @@
         renderRunLogs(currentScheduleRuns);
       }
 
+      function removeTaskLocally(taskId) {
+        removeItemById(initialTasks, taskId);
+        tasksById.delete(taskId);
+        currentBlocks = currentBlocks.filter((block) => block.task_id !== taskId);
+        if (Array.isArray(currentUnscheduled)) {
+          currentUnscheduled = currentUnscheduled.filter((task) => task.task_id !== taskId);
+        }
+        document.querySelector(`[data-task-row="${taskId}"]`)?.remove();
+        renderDashboard();
+      }
+
+      function removeEventLocally(eventId) {
+        removeItemById(initialEvents, eventId);
+        currentBlocks = currentBlocks.filter((block) => block.event_id !== eventId);
+        document.querySelector(`[data-event-row="${eventId}"]`)?.remove();
+        renderDashboard();
+      }
+
       document.getElementById("task-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        await request(routes.create_task, {
-          payload: {
-            user_id: Number(form.get("user_id")),
-            title: form.get("title"),
-            est_duration_min: Number(form.get("est_duration_min")),
-            priority: Number(form.get("priority")),
-            due_at: form.get("due_at") || null,
-            due_is_hard: form.get("due_is_hard") === "on",
-          },
-        });
+        await runAction(
+          () => request(routes.create_task, {
+            payload: {
+              user_id: Number(form.get("user_id")),
+              title: form.get("title"),
+              est_duration_min: Number(form.get("est_duration_min")),
+              priority: Number(form.get("priority")),
+              due_at: form.get("due_at") || null,
+              due_is_hard: form.get("due_is_hard") === "on",
+            },
+          }),
+          "Could not add the task.",
+        );
         window.location.reload();
       });
 
       document.getElementById("event-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        await request(routes.create_event, {
-          payload: {
-            user_id: Number(form.get("user_id")),
-            title: form.get("title"),
-            starts_at: form.get("starts_at"),
-            ends_at: form.get("ends_at"),
-            location: form.get("location") || null,
-          },
-        });
+        await runAction(
+          () => request(routes.create_event, {
+            payload: {
+              user_id: Number(form.get("user_id")),
+              title: form.get("title"),
+              starts_at: form.get("starts_at"),
+              ends_at: form.get("ends_at"),
+              location: form.get("location") || null,
+            },
+          }),
+          "Could not add the event.",
+        );
         window.location.reload();
       });
 
       document.getElementById("reset-demo").addEventListener("click", async () => {
-        await request(routes.reset_demo, { payload: {} });
+        await runAction(
+          () => request(routes.reset_demo, { payload: {} }),
+          "Could not reset the demo data.",
+        );
         window.location.reload();
       });
 
@@ -1076,14 +1154,17 @@
           workdayEndInputEl.reportValidity();
           return;
         }
-        const payload = await request(routes.generate_schedule, {
-          payload: {
-            user_id: demoUserId,
-            week_start: weekStart,
-            workday_start: formatTimeValue(currentWorkdayStartMinutes),
-            workday_end: formatTimeValue(currentWorkdayEndMinutes),
-          },
-        });
+        const payload = await runAction(
+          () => request(routes.generate_schedule, {
+            payload: {
+              user_id: demoUserId,
+              week_start: weekStart,
+              workday_start: formatTimeValue(currentWorkdayStartMinutes),
+              workday_end: formatTimeValue(currentWorkdayEndMinutes),
+            },
+          }),
+          "Could not generate the schedule.",
+        );
         currentBlocks = payload.blocks;
         currentUnscheduled = payload.unscheduled_tasks;
         currentSolverRun = payload.solver_run;
@@ -1091,26 +1172,35 @@
         renderDashboard();
       });
 
-      document.querySelectorAll("[data-task-delete]").forEach((button) => {
-        button.addEventListener("click", async () => {
-          const taskId = button.dataset.taskDelete;
-          if (!taskId || !window.confirm("Remove this task from the week?")) {
+      document.addEventListener("click", async (event) => {
+        const taskDeleteLink = event.target.closest("[data-task-delete-url]");
+        if (taskDeleteLink) {
+          event.preventDefault();
+          const taskId = Number(taskDeleteLink.dataset.taskId);
+          if (!Number.isInteger(taskId)) {
             return;
           }
-          await request(routes.delete_task_template.replace(/0$/, String(taskId)), { method: "DELETE" });
-          window.location.reload();
-        });
-      });
+          await runAction(
+            () => request(taskDeleteLink.dataset.taskDeleteUrl, { method: "DELETE" }),
+            "Could not remove the task.",
+          );
+          removeTaskLocally(taskId);
+          return;
+        }
 
-      document.querySelectorAll("[data-event-delete]").forEach((button) => {
-        button.addEventListener("click", async () => {
-          const eventId = button.dataset.eventDelete;
-          if (!eventId || !window.confirm("Remove this fixed calendar constraint?")) {
+        const eventDeleteLink = event.target.closest("[data-event-delete-url]");
+        if (eventDeleteLink) {
+          event.preventDefault();
+          const eventId = Number(eventDeleteLink.dataset.eventId);
+          if (!Number.isInteger(eventId)) {
             return;
           }
-          await request(routes.delete_event_template.replace(/0$/, String(eventId)), { method: "DELETE" });
-          window.location.reload();
-        });
+          await runAction(
+            () => request(eventDeleteLink.dataset.eventDeleteUrl, { method: "DELETE" }),
+            "Could not remove the event.",
+          );
+          removeEventLocally(eventId);
+        }
       });
 
       [workdayStartInputEl, workdayEndInputEl].forEach((input) => {
