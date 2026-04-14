@@ -38,3 +38,31 @@ def test_root_page_shows_planned_blocks_after_schedule_run(client: TestClient) -
     assert response.status_code == 200
     assert "Task placements" in response.text
     assert "planned blocks are already layered onto the weekly calendar" in response.text
+
+
+def test_root_page_does_not_reseed_after_all_tasks_are_deleted(client: TestClient) -> None:
+    reset_payload = client.post("/demo/reset", json={}).json()
+    tasks = client.get("/tasks", params={"user_id": reset_payload["user_id"]}).json()
+    for task in tasks:
+        delete_response = client.delete(f"/tasks/{task['id']}")
+        assert delete_response.status_code == 204
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Build timeline demo" not in response.text
+    assert "Weekly Standup" in response.text
+
+
+def test_root_page_does_not_reseed_after_all_events_are_deleted(client: TestClient) -> None:
+    reset_payload = client.post("/demo/reset", json={}).json()
+    events = client.get("/events", params={"user_id": reset_payload["user_id"]}).json()
+    for event in events:
+        delete_response = client.delete(f"/events/{event['id']}")
+        assert delete_response.status_code == 204
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Weekly Standup" not in response.text
+    assert "Build timeline demo" in response.text

@@ -80,7 +80,7 @@ def load_demo_state(db: Session, *, week_start: date = DEMO_WEEK_START) -> DemoS
 
 def ensure_demo_data(db: Session) -> DemoState:
     state = load_demo_state(db)
-    if state.tasks and state.events:
+    if state.tasks or state.events or state.blocks:
         return state
     return reset_demo_data(db)
 
