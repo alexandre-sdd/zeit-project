@@ -71,6 +71,7 @@ scripts/run_in_zeit_env.sh pytest -q
 
 - The active deploy root is the repository root: `zeit-project/`.
 - `Dockerfile` lives at the repo root and copies the app from that root into `/app` in the image.
+- The Docker image now defaults `ZEIT_DATABASE_URL` to `sqlite:////data/test.db` and declares `/data` as a volume so schedule runs can persist outside the image layer.
 - Static assets are served by FastAPI from `app/static` at `/static`, and the UI now resolves app routes with `request.url_for(...)` so links remain correct if the app is mounted behind a proxy path.
 - If Railway ever renders unstyled HTML again while the app otherwise loads, the likely causes are:
   - browser cache serving an old HTML shell or CSS response
@@ -103,6 +104,62 @@ curl -X POST http://127.0.0.1:8000/schedule/generate \
 
 curl "http://127.0.0.1:8000/blocks?user_id=2&week_start=2026-04-13"
 ```
+
+## Docker Persistence
+
+Build the image:
+
+```bash
+docker build -t zeit-project .
+```
+
+Run it with a named Docker volume so the SQLite database, generated blocks, and schedule run logs survive container replacement:
+
+```bash
+docker volume create zeit_data
+
+docker run -p 8000:8000 \
+  -v zeit_data:/data \
+  zeit-project
+```
+
+Or use a bind mount if you want to inspect the SQLite file directly from the repo:
+
+```bash
+mkdir -p data
+
+docker run -p 8000:8000 \
+  -v "$(pwd)/data:/data" \
+  zeit-project
+```
+
+You can also use Docker Compose:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+That uses the named volume declared in [docker-compose.yml](/Users/alexandresepulvedadedietrich/Code/zeit-project/docker-compose.yml:1), so the SQLite database survives container replacement.
+
+## Railway Persistence
+
+For Railway, prefer Postgres over SQLite. Local container files are not a reliable persistence layer across redeploys.
+
+1. Add a PostgreSQL service in Railway.
+2. Copy the connection string from that service.
+3. Set `ZEIT_DATABASE_URL` on the app service to that Postgres URL.
+4. Set `ZEIT_ENV=prod`.
+5. Redeploy the app.
+
+Example:
+
+```env
+ZEIT_ENV=prod
+ZEIT_DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DBNAME
+```
+
+The app will create the schema on startup against that database, and tasks, blocks, and schedule run logs will persist across Railway restarts and deployments.
 
 ## Data Model
 
