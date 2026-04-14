@@ -45,6 +45,27 @@ uvicorn app.main:app --reload
 
 Then open `http://127.0.0.1:8000/` to see the seeded demo page. The app creates the SQLite schema on startup using the configured `ZEIT_DATABASE_URL`, which defaults to `sqlite:///./test.db`.
 
+## OR-Tools Runtime
+
+The current default shell in this workspace is Python `3.13`, and the scheduler intentionally
+falls back to the greedy planner there because the CP-SAT solve path is not stable in this runtime.
+If you want to see real OR-Tools scheduling, run the app and tests in the existing `conda` env
+named `zeit`, which uses Python `3.12`.
+
+Examples:
+
+```bash
+conda run -n zeit uvicorn app.main:app --reload
+conda run -n zeit pytest -q
+```
+
+Or use the project wrapper:
+
+```bash
+scripts/run_in_zeit_env.sh uvicorn app.main:app --reload
+scripts/run_in_zeit_env.sh pytest -q
+```
+
 ## Demo Flow
 
 1. Open `/` and let the app seed the demo user if the database is empty.
