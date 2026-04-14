@@ -36,7 +36,7 @@
             <button id="generate-schedule" class="button button-primary" type="button">Generate Schedule</button>
             <a
               class="button button-secondary"
-              href="/calendar/export.ics?user_id={{ demo_user.id }}&week_start={{ week_start.isoformat() }}"
+              href="{{ routes.export_calendar_ics }}?user_id={{ demo_user.id }}&week_start={{ week_start.isoformat() }}"
               download
             >
               Download ICS
@@ -366,6 +366,7 @@
       const initialEvents = {{ initial_events | tojson }};
       const initialBlocks = {{ initial_blocks | tojson }};
       const initialSolverRun = {{ initial_solver_run | tojson }};
+      const routes = {{ routes | tojson }};
 
       const totalSlotsPerDay = ((workdayEndHour - workdayStartHour) * 60) / slotMinutes;
       const weekStartDate = new Date(`${weekStart}T00:00:00`);
@@ -727,7 +728,7 @@
       document.getElementById("task-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        await request("/tasks", {
+        await request(routes.create_task, {
           payload: {
             user_id: Number(form.get("user_id")),
             title: form.get("title"),
@@ -743,7 +744,7 @@
       document.getElementById("event-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        await request("/events", {
+        await request(routes.create_event, {
           payload: {
             user_id: Number(form.get("user_id")),
             title: form.get("title"),
@@ -756,12 +757,12 @@
       });
 
       document.getElementById("reset-demo").addEventListener("click", async () => {
-        await request("/demo/reset", { payload: {} });
+        await request(routes.reset_demo, { payload: {} });
         window.location.reload();
       });
 
       document.getElementById("generate-schedule").addEventListener("click", async () => {
-        const payload = await request("/schedule/generate", {
+        const payload = await request(routes.generate_schedule, {
           payload: {
             user_id: demoUserId,
             week_start: weekStart,
@@ -779,7 +780,7 @@
           if (!taskId || !window.confirm("Remove this task from the week?")) {
             return;
           }
-          await request(`/tasks/${taskId}`, { method: "DELETE" });
+          await request(routes.delete_task_template.replace(/0$/, String(taskId)), { method: "DELETE" });
           window.location.reload();
         });
       });
@@ -790,7 +791,7 @@
           if (!eventId || !window.confirm("Remove this fixed calendar constraint?")) {
             return;
           }
-          await request(`/events/${eventId}`, { method: "DELETE" });
+          await request(routes.delete_event_template.replace(/0$/, String(eventId)), { method: "DELETE" });
           window.location.reload();
         });
       });

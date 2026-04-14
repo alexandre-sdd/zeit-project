@@ -15,7 +15,7 @@ This is still not a production scheduler. The value of the repo today is that th
 ## Layout
 
 ```text
-zeit_code/
+zeit-project/
 ├── app/
 │   ├── api/          # FastAPI routes + request/response schemas
 │   ├── core/         # settings, logging, timezone helpers
@@ -62,9 +62,20 @@ conda run -n zeit pytest -q
 Or use the project wrapper:
 
 ```bash
+scripts/start_local.sh
 scripts/run_in_zeit_env.sh uvicorn app.main:app --reload
 scripts/run_in_zeit_env.sh pytest -q
 ```
+
+## Deployment Notes
+
+- The active deploy root is the repository root: `zeit-project/`.
+- `Dockerfile` lives at the repo root and copies the app from that root into `/app` in the image.
+- Static assets are served by FastAPI from `app/static` at `/static`, and the UI now resolves app routes with `request.url_for(...)` so links remain correct if the app is mounted behind a proxy path.
+- If Railway ever renders unstyled HTML again while the app otherwise loads, the likely causes are:
+  - browser cache serving an old HTML shell or CSS response
+  - a Railway service pointing at the wrong root directory or an older deployment
+  - a proxy/root-path mismatch outside the container rather than missing local files in this repo
 
 ## Demo Flow
 
@@ -95,7 +106,7 @@ curl "http://127.0.0.1:8000/blocks?user_id=2&week_start=2026-04-13"
 
 ## Data Model
 
-Core entities live in [app/db/models.py](/Users/alexandresepulvedadedietrich/Code/Old_Projectx/Zeit/zeit_code/app/db/models.py) and mirror the planned scheduling workflow:
+Core entities live in `app/db/models.py` and mirror the planned scheduling workflow:
 
 - `User` owns tasks, events, and blocks.
 - `Task` captures work to be scheduled, including duration, priority, and optional due date.
@@ -128,4 +139,4 @@ python -m compileall app
 
 ## Notes
 
-See [RECRUITER_READINESS.md](/Users/alexandresepulvedadedietrich/Code/Old_Projectx/Zeit/zeit_code/RECRUITER_READINESS.md) for a concise review of what the repo now demonstrates well and what remains worth improving before a broader portfolio push.
+See `RECRUITER_READINESS.md` for a concise review of what the repo now demonstrates well and what remains worth improving before a broader portfolio push.
